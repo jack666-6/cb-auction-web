@@ -1,0 +1,447 @@
+<title>CB競拍統計 2026</title>
+<style>
+  :root{
+    --bg:#EEF1EE; --surface:#FFFFFF; --surface-alt:#F4F7F5; --border:#D7DEDA;
+    --ink:#16231F; --muted:#57675F; --muted-2:#7C8B83;
+    --accent:#1E3F63; --accent-soft:#E3EBF3; --accent-ink:#12283F;
+    --gain:#B23A2A; --gain-soft:#F6E6E1;
+    --loss:#1F7A50; --loss-soft:#E1F0E6;
+    --warn:#9A6A16; --warn-soft:#F3E7D2;
+    --shadow: 0 1px 2px rgba(20,30,25,.06), 0 8px 24px rgba(20,30,25,.06);
+    --font-display: "Songti TC","Iowan Old Style","PMingLiU","Palatino Linotype", Georgia, serif;
+    --font-body: -apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Segoe UI",sans-serif;
+    --font-mono: ui-monospace,"SF Mono","Cascadia Code",Menlo,Consolas,monospace;
+    --scale: 1;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#10161A; --surface:#161E23; --surface-alt:#1B242A; --border:#2B363D;
+      --ink:#E7ECEA; --muted:#9BAAA2; --muted-2:#7C8B83;
+      --accent:#7FADDD; --accent-soft:#1E2C3B; --accent-ink:#DCEAFB;
+      --gain:#E28073; --gain-soft:#3A211D;
+      --loss:#6FCB99; --loss-soft:#173226;
+      --warn:#E6BE79; --warn-soft:#3A2E17;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10161A; --surface:#161E23; --surface-alt:#1B242A; --border:#2B363D;
+    --ink:#E7ECEA; --muted:#9BAAA2; --muted-2:#7C8B83;
+    --accent:#7FADDD; --accent-soft:#1E2C3B; --accent-ink:#DCEAFB;
+    --gain:#E28073; --gain-soft:#3A211D;
+    --loss:#6FCB99; --loss-soft:#173226;
+    --warn:#E6BE79; --warn-soft:#3A2E17;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+  :root[data-theme="light"]{
+    --bg:#EEF1EE; --surface:#FFFFFF; --surface-alt:#F4F7F5; --border:#D7DEDA;
+    --ink:#16231F; --muted:#57675F; --muted-2:#7C8B83;
+    --accent:#1E3F63; --accent-soft:#E3EBF3; --accent-ink:#12283F;
+    --gain:#B23A2A; --gain-soft:#F6E6E1;
+    --loss:#1F7A50; --loss-soft:#E1F0E6;
+    --warn:#9A6A16; --warn-soft:#F3E7D2;
+    --shadow: 0 1px 2px rgba(20,30,25,.06), 0 8px 24px rgba(20,30,25,.06);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--font-body); font-size:calc(15px * var(--scale));
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .page{ max-width:1400px; margin:0 auto; padding:28px 20px 64px; }
+
+  header.top{ display:flex; flex-wrap:wrap; gap:16px 28px; align-items:flex-end; justify-content:space-between; margin-bottom:22px; }
+  .titleblock h1{
+    font-family:var(--font-display); font-weight:600; letter-spacing:.01em;
+    font-size:calc(28px * var(--scale)); margin:0 0 6px; text-wrap:balance; color:var(--ink);
+  }
+  .titleblock p{ margin:0; color:var(--muted); font-size:calc(13.5px * var(--scale)); max-width:56ch; }
+  .titleblock .eyebrow{
+    font-family:var(--font-mono); font-size:calc(11px * var(--scale)); letter-spacing:.12em; text-transform:uppercase;
+    color:var(--accent); margin:0 0 8px; font-weight:600;
+  }
+
+  .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .search{
+    display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:7px 12px; box-shadow:var(--shadow);
+  }
+  .search input{
+    border:none; outline:none; background:transparent; color:var(--ink); font-family:var(--font-body);
+    font-size:calc(13.5px * var(--scale)); width:170px;
+  }
+  .search svg{ flex:none; opacity:.55; }
+  .fontctl{ display:flex; align-items:center; gap:2px; background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:3px; box-shadow:var(--shadow); }
+  .fontctl button{
+    appearance:none; border:none; background:transparent; color:var(--ink); width:30px; height:30px; border-radius:6px;
+    font-family:var(--font-mono); font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .fontctl button:hover{ background:var(--accent-soft); }
+  .fontctl button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .fontctl .lbl{ font-size:11px; color:var(--muted); padding:0 6px; font-family:var(--font-mono); }
+
+  .stats{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:22px;
+  }
+  .stat{
+    background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px;
+    box-shadow:var(--shadow);
+  }
+  .stat .n{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; font-size:calc(22px * var(--scale)); font-weight:600; line-height:1.1; }
+  .stat .l{ color:var(--muted); font-size:calc(11.5px * var(--scale)); margin-top:5px; letter-spacing:.02em; }
+  .stat.accent .n{ color:var(--accent); }
+  .stat.warn .n{ color:var(--warn); }
+
+  .legend{ display:flex; flex-wrap:wrap; gap:14px 20px; margin:0 0 14px; font-size:calc(12px * var(--scale)); color:var(--muted); }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .legend i{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+  .tablewrap{
+    background:var(--surface); border:1px solid var(--border); border-radius:12px; overflow:auto;
+    box-shadow:var(--shadow); max-height:74vh; position:relative;
+  }
+  table{ border-collapse:separate; border-spacing:0; font-family:var(--font-mono); font-variant-numeric:tabular-nums;
+    font-size:calc(12.5px * var(--scale)); white-space:nowrap; }
+  thead th{ position:sticky; top:0; background:var(--accent); color:#fff; z-index:3; font-family:var(--font-body);
+    font-weight:600; text-align:left; padding:0; border-bottom:1px solid var(--border); }
+  thead tr.grp th{ font-size:calc(10.5px * var(--scale)); letter-spacing:.06em; text-transform:uppercase; opacity:.92;
+    padding:7px 10px 5px; top:0; background:var(--accent-ink); }
+  thead tr.cols th{ font-size:calc(11.5px * var(--scale)); padding:7px 10px 8px; top:calc(1.7em * var(--scale)); }
+  thead tr.cols th .unit{ display:block; font-weight:400; opacity:.75; font-size:.85em; }
+  tbody tr{ background:var(--surface); }
+  tbody td{ padding:6px 10px; border-bottom:1px solid var(--border); color:var(--ink); }
+  tbody tr:nth-child(even){ background:var(--surface-alt); }
+  tbody tr.pending td{ color:var(--muted-2); }
+  tbody tr.failed{ background:var(--warn-soft) !important; }
+  tbody tr:hover td{ background:var(--accent-soft); }
+  td.name{ font-family:var(--font-body); font-weight:600; }
+  td.code{ color:var(--muted); }
+  td.txt{ font-family:var(--font-body); }
+  td.num{ text-align:right; }
+  td.gain{ color:var(--gain); }
+  td.loss{ color:var(--loss); }
+  td.dash{ color:var(--muted-2); text-align:right; }
+
+  .frozen{ position:sticky; background:inherit; z-index:2; }
+  thead .frozen{ z-index:4; }
+  thead tr.grp th.frozen{ background:var(--accent-ink); }
+  thead tr.cols th.frozen{ background:var(--accent); }
+  .frozen::after{ content:""; position:absolute; top:0; right:0; bottom:0; width:1px; background:var(--border); }
+
+  .badge{ display:inline-flex; align-items:center; gap:5px; font-family:var(--font-body); font-size:.85em;
+    padding:2px 8px; border-radius:100px; font-weight:600; }
+  .badge.warn{ background:var(--warn-soft); color:var(--warn); }
+  .badge.pending{ background:var(--accent-soft); color:var(--accent); }
+
+  footer{ margin-top:20px; color:var(--muted-2); font-size:calc(11.5px * var(--scale)); font-family:var(--font-body); }
+  footer a{ color:var(--accent); }
+
+  .hscroll{ margin-top:10px; padding:2px 3px; }
+  .hscroll input[type="range"]{
+    -webkit-appearance:none; appearance:none; width:100%; height:8px; border-radius:999px;
+    background:var(--border); outline:none; cursor:pointer; display:block; margin:0;
+  }
+  .hscroll input[type="range"]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:20px; height:20px; border-radius:50%;
+    background:var(--accent); border:3px solid var(--surface); box-shadow:var(--shadow); cursor:grab;
+  }
+  .hscroll input[type="range"]::-webkit-slider-thumb:active{ cursor:grabbing; }
+  .hscroll input[type="range"]::-moz-range-thumb{
+    width:20px; height:20px; border-radius:50%; background:var(--accent);
+    border:3px solid var(--surface); box-shadow:var(--shadow); cursor:grab;
+  }
+  .hscroll input[type="range"]::-moz-range-track{ background:var(--border); height:8px; border-radius:999px; }
+  .hscroll[data-disabled="true"]{ opacity:.3; pointer-events:none; }
+  .hscroll:focus-within input[type="range"]{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  ::-webkit-scrollbar{ height:11px; width:11px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:6px; border:3px solid var(--surface); }
+
+  @media (max-width:640px){
+    .titleblock h1{ font-size:22px; }
+    .stats{ grid-template-columns:repeat(2,1fr); }
+  }
+</style>
+
+<div class="page">
+  <header class="top">
+    <div class="titleblock">
+      <p class="eyebrow">台灣證交所 · 競價拍賣公告</p>
+      <h1>CB 競拍統計 · 2026年</h1>
+      <p>可轉換公司債(CB)競價拍賣公告與得標結果，含轉換價、parity%、得標成本與掛牌後表現。資料來源：TWSE 競拍公告、FinMind、統一證券 CBAS。</p>
+    </div>
+    <div class="controls">
+      <div class="search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchBox" type="text" placeholder="搜尋證券名稱或代號…" autocomplete="off">
+      </div>
+      <div class="fontctl">
+        <span class="lbl">字級</span>
+        <button id="fontDown" aria-label="縮小字級">A-</button>
+        <button id="fontUp" aria-label="放大字級">A+</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="stats" id="statsRow"></div>
+
+  <div class="legend">
+    <span><i style="background:var(--gain)"></i>正值(漲/溢價)</span>
+    <span><i style="background:var(--loss)"></i>負值(跌/折價)</span>
+    <span><i style="background:var(--warn)"></i>流標／取消</span>
+    <span><i style="background:var(--accent)"></i>尚未開標</span>
+    <span>— 表示資料尚未產生(例如尚未掛牌)</span>
+  </div>
+
+  <div class="tablewrap" id="tableWrap"></div>
+
+  <div class="hscroll" id="hScrollBox">
+    <input type="range" id="hScrollRange" min="0" max="0" value="0" step="1" aria-label="橫向拖曳捲動表格">
+  </div>
+
+  <footer>
+    序號規則同原始工作表(年度+3碼序號，依開標日期新到舊排列)。點兩下欄位可依該欄排序；橫向捲動可看到全部46欄，前4欄已凍結。
+  </footer>
+</div>
+
+<script>
+const DATA = __DATA_JSON__;
+
+// 使用者用拖拽介面調整過的欄位順序(移除了主辦券商、取消競價拍賣(流標或取消)這兩欄不顯示，
+// 但這兩個欄位資料仍在DATA.headers裡，rowStatus/renderStats等內部邏輯繼續正常運作)
+const COLUMN_ORDER = [
+  ["序號","公告資訊"],["開標日期","公告資訊"],["證券名稱","公告資訊"],["證券代號","公告資訊"],
+  ["發行性質","公告資訊"],["投標開始日","公告資訊"],["投標結束日","公告資訊"],
+  ["撥券日期(上市、上櫃日期)","公告資訊"],["競拍數量(張)","公告資訊"],["最低投標價格(元)","公告資訊"],
+  ["得標總金額(元)","得標結果"],["得標手續費率(%)","得標結果"],["總合格件","得標結果"],["合格投標數量(張)","得標結果"],
+  ["最低得標價格(元)","得標結果"],["最高得標價格(元)","得標結果"],["得標加權平均價格(元)","得標結果"],["承銷價格(元)","得標結果"],
+  ["轉換價","轉換價／Parity"],["投標結束日現股收盤價","轉換價／Parity"],["投標結束日parity%","轉換價／Parity"],
+  ["最低得標成本","得標成本"],["最低得標成本溢價率","得標成本"],["得標加權平均成本","得標成本"],["得標加權平均成本溢價率","得標成本"],
+  ["合格投標倍數","轉換價／Parity"],["合格投標筆數","轉換價／Parity"],["合格投標數量","轉換價／Parity"],["單筆投標均量","轉換價／Parity"],
+  ["掛牌第一天現股收盤價","掛牌後表現"],["掛牌第六天現股收盤價","掛牌後表現"],
+  ["投標結束日至掛牌第一天現股漲跌幅","掛牌後表現"],["投標結束日至掛牌第六天現股漲跌幅","掛牌後表現"],
+  ["掛牌第一天parity%","掛牌後表現"],["掛牌第六天parity%","掛牌後表現"],
+  ["掛牌第一天開盤價","掛牌後表現"],["掛牌第一天收盤價","掛牌後表現"],["掛牌第六天收盤價","掛牌後表現"],
+  ["掛牌第一天CB(折)溢價%","掛牌後表現"],["掛牌第六天CB(折)溢價%","掛牌後表現"],
+  ["掛牌第一天開盤價最低得標成本報酬率","掛牌後表現"],["掛牌第一天開盤價得標加權平均成本報酬率","掛牌後表現"],
+  ["掛牌第一天收盤價最低得標成本報酬率","掛牌後表現"],["掛牌第一天收盤價得標加權平均成本報酬率","掛牌後表現"],
+  ["掛牌第六天最低得標成本報酬率","掛牌後表現"],["掛牌第六天得標加權平均成本報酬率","掛牌後表現"]
+];
+
+function computeGroupRuns(){
+  const runs = [];
+  COLUMN_ORDER.forEach(([key,group])=>{
+    if(runs.length && runs[runs.length-1].label===group) runs[runs.length-1].cols.push(key);
+    else runs.push({label:group, cols:[key]});
+  });
+  return runs;
+}
+
+// type: text | date | code | int | price | num2 | pct_raw | pct_frac | mult | flag
+const COLTYPE = {
+  "序號":"text","開標日期":"date","證券名稱":"name","證券代號":"code","發行性質":"text",
+  "投標開始日":"date","投標結束日":"date","競拍數量(張)":"int","最低投標價格(元)":"price",
+  "撥券日期(上市、上櫃日期)":"date","主辦券商":"text",
+  "得標總金額(元)":"int","得標手續費率(%)":"pct_raw","總合格件":"int","合格投標數量(張)":"int",
+  "最低得標價格(元)":"price","最高得標價格(元)":"price","得標加權平均價格(元)":"price","承銷價格(元)":"price",
+  "取消競價拍賣(流標或取消)":"flag","轉換價":"price","投標結束日現股收盤價":"price","投標結束日parity%":"pct_raw",
+  "合格投標倍數":"mult","合格投標筆數":"int","合格投標數量":"int","單筆投標均量":"num2",
+  "最低得標成本":"price","最低得標成本溢價率":"pct_frac_s","得標加權平均成本":"price","得標加權平均成本溢價率":"pct_frac_s",
+  "掛牌第一天現股收盤價":"price","掛牌第六天現股收盤價":"price",
+  "投標結束日至掛牌第一天現股漲跌幅":"pct_frac_s","投標結束日至掛牌第六天現股漲跌幅":"pct_frac_s",
+  "掛牌第一天parity%":"pct_raw","掛牌第六天parity%":"pct_raw",
+  "掛牌第一天開盤價":"price","掛牌第一天收盤價":"price","掛牌第六天收盤價":"price",
+  "掛牌第一天CB(折)溢價%":"pct_raw_s","掛牌第六天CB(折)溢價%":"pct_raw_s",
+  "掛牌第一天開盤價最低得標成本報酬率":"pct_frac_s","掛牌第一天開盤價得標加權平均成本報酬率":"pct_frac_s",
+  "掛牌第一天收盤價最低得標成本報酬率":"pct_frac_s","掛牌第一天收盤價得標加權平均成本報酬率":"pct_frac_s",
+  "掛牌第六天最低得標成本報酬率":"pct_frac_s","掛牌第六天得標加權平均成本報酬率":"pct_frac_s"
+};
+const SHORT = {
+  "撥券日期(上市、上櫃日期)":"撥券日期","得標總金額(元)":"得標總金額","得標手續費率(%)":"手續費率",
+  "合格投標數量(張)":"合格投標數量","競拍數量(張)":"競拍數量","最低投標價格(元)":"最低投標價",
+  "最低得標價格(元)":"最低得標價","最高得標價格(元)":"最高得標價","得標加權平均價格(元)":"得標加權均價",
+  "承銷價格(元)":"承銷價格","取消競價拍賣(流標或取消)":"流標/取消","投標結束日現股收盤價":"投標結束收盤價",
+  "投標結束日parity%":"parity%","最低得標成本溢價率":"成本溢價率(最低)","得標加權平均成本溢價率":"成本溢價率(加權)",
+  "投標結束日至掛牌第一天現股漲跌幅":"現股漲跌幅(D1)","投標結束日至掛牌第六天現股漲跌幅":"現股漲跌幅(D6)",
+  "掛牌第一天parity%":"parity%(D1)","掛牌第六天parity%":"parity%(D6)",
+  "掛牌第一天CB(折)溢價%":"CB折溢價%(D1)","掛牌第六天CB(折)溢價%":"CB折溢價%(D6)",
+  "掛牌第一天開盤價最低得標成本報酬率":"報酬率 開盤/最低(D1)","掛牌第一天開盤價得標加權平均成本報酬率":"報酬率 開盤/加權(D1)",
+  "掛牌第一天收盤價最低得標成本報酬率":"報酬率 收盤/最低(D1)","掛牌第一天收盤價得標加權平均成本報酬率":"報酬率 收盤/加權(D1)",
+  "掛牌第六天最低得標成本報酬率":"報酬率/最低(D6)","掛牌第六天得標加權平均成本報酬率":"報酬率/加權(D6)"
+};
+
+const FROZEN = ["序號","開標日期","證券名稱","證券代號"];
+const FROZEN_W = {"序號":72,"開標日期":90,"證券名稱":112,"證券代號":76};
+let frozenLeft = {}; (function(){ let acc=0; FROZEN.forEach(c=>{ frozenLeft[c]=acc; acc+=FROZEN_W[c]; }); })();
+
+function fmtInt(n){ return Math.round(n).toLocaleString("en-US"); }
+function fmtPrice(n){ return (Math.round(n*100)/100).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
+
+function cellHTML(col,val){
+  const t = COLTYPE[col];
+  if(val===null || val===undefined || val===""){
+    return {cls:"dash", html:"–"};
+  }
+  switch(t){
+    case "text": return {cls:"txt", html:val};
+    case "name": return {cls:"name", html:val};
+    case "code": return {cls:"code num", html:val};
+    case "date": return {cls:"num", html:val};
+    case "int": return {cls:"num", html: val===0 ? "–" : fmtInt(val)};
+    case "price": return {cls:"num", html: val===0 ? "–" : fmtPrice(val)};
+    case "num2": return {cls:"num", html: fmtPrice(val)};
+    case "mult": return {cls:"num", html: fmtPrice(val)+"×"};
+    case "pct_raw": return {cls:"num", html: fmtPrice(val)+"%"};
+    case "pct_raw_s": {
+      const sign = val>0?"gain":(val<0?"loss":"");
+      return {cls:"num "+sign, html:(val>0?"+":"")+fmtPrice(val)+"%"};
+    }
+    case "pct_frac_s": {
+      const p = val*100; const sign = p>0?"gain":(p<0?"loss":"");
+      return {cls:"num "+sign, html:(p>0?"+":"")+fmtPrice(p)+"%"};
+    }
+    case "flag": return {cls:"num", html: val==="Y" ? '<span class="badge warn">流標</span>' : "–"};
+    default: return {cls:"num", html:String(val)};
+  }
+}
+
+function buildHead(){
+  const grpRow = document.createElement("tr"); grpRow.className="grp";
+  const colRow = document.createElement("tr"); colRow.className="cols";
+  const runs = computeGroupRuns();
+  runs.forEach((run,i)=>{
+    const th = document.createElement("th");
+    th.textContent = run.label; th.colSpan = run.cols.length;
+    if(i===0){ th.classList.add("frozen"); th.style.left="0px"; th.colSpan=FROZEN.length; grpRow.appendChild(th);
+      const th2 = document.createElement("th"); th2.textContent=run.label+"(續)"; th2.colSpan=run.cols.length-FROZEN.length; grpRow.appendChild(th2);
+    } else { grpRow.appendChild(th); }
+  });
+  COLUMN_ORDER.forEach(([c])=>{
+    const th = document.createElement("th");
+    th.textContent = SHORT[c]||c;
+    th.dataset.col = c;
+    th.style.cursor="pointer";
+    th.title="點擊排序：" + c;
+    if(FROZEN.includes(c)){ th.classList.add("frozen"); th.style.left = frozenLeft[c]+"px"; }
+    th.addEventListener("click",()=>sortBy(c));
+    colRow.appendChild(th);
+  });
+  return [grpRow,colRow];
+}
+
+// 預設由近到遠：開標日期新到舊排在最上面
+let sortState = {col:"開標日期", dir:-1};
+function sortBy(col){
+  if(sortState.col===col) sortState.dir*=-1; else { sortState.col=col; sortState.dir=-1; }
+  render();
+}
+
+function rowStatus(row,idx){
+  const cancelled = row[idx["取消競價拍賣(流標或取消)"]]==="Y";
+  const won = row[idx["得標總金額(元)"]];
+  if(cancelled) return "failed";
+  if(!won) return "pending";
+  return "";
+}
+
+function render(){
+  const idx = {}; DATA.headers.forEach((h,i)=>idx[h]=i);
+  let rows = DATA.rows.slice();
+
+  const q = document.getElementById("searchBox").value.trim().toLowerCase();
+  if(q){
+    rows = rows.filter(r => String(r[idx["證券名稱"]]).toLowerCase().includes(q) || String(r[idx["證券代號"]]).toLowerCase().includes(q));
+  }
+  if(sortState.col){
+    const ci = idx[sortState.col];
+    rows.sort((a,b)=>{
+      let av=a[ci], bv=b[ci];
+      if(av===null||av===undefined) av = -Infinity;
+      if(bv===null||bv===undefined) bv = -Infinity;
+      if(typeof av==="string" && typeof bv==="string") return av.localeCompare(bv)*sortState.dir;
+      return ((av>bv)?1:(av<bv?-1:0))*sortState.dir;
+    });
+  }
+
+  const wrap = document.getElementById("tableWrap");
+  wrap.innerHTML = "";
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  buildHead().forEach(r=>thead.appendChild(r));
+  table.appendChild(thead);
+  const tbody = document.createElement("tbody");
+
+  rows.forEach(row=>{
+    const tr = document.createElement("tr");
+    const status = rowStatus(row, idx);
+    if(status) tr.classList.add(status);
+    COLUMN_ORDER.forEach(([col])=>{
+      const td = document.createElement("td");
+      const {cls, html} = cellHTML(col, row[idx[col]]);
+      td.className = cls;
+      td.innerHTML = html;
+      if(FROZEN.includes(col)){ td.classList.add("frozen"); td.style.left = frozenLeft[col]+"px"; }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  wrap.appendChild(table);
+
+  renderStats(idx);
+  requestAnimationFrame(syncHScroll);
+}
+
+function syncHScroll(){
+  const wrap = document.getElementById("tableWrap");
+  const box = document.getElementById("hScrollBox");
+  const range = document.getElementById("hScrollRange");
+  const max = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+  range.max = max;
+  range.value = wrap.scrollLeft;
+  box.dataset.disabled = max <= 0 ? "true" : "false";
+}
+
+function renderStats(idx){
+  const rows = DATA.rows;
+  const total = rows.length;
+  const failed = rows.filter(r=>r[idx["取消競價拍賣(流標或取消)"]]==="Y").length;
+  const pending = rows.filter(r=>!r[idx["得標總金額(元)"]] && r[idx["取消競價拍賣(流標或取消)"]]!=="Y").length;
+  const done = total - failed - pending;
+  const premiums = rows.map(r=>r[idx["得標加權平均成本溢價率"]]).filter(v=>v!==null && v!==undefined);
+  const avgPrem = premiums.length ? (premiums.reduce((a,b)=>a+b,0)/premiums.length*100) : null;
+
+  const stats = [
+    {n: total, l:"2026年競拍檔數", cls:""},
+    {n: done, l:"已完成競拍", cls:"accent"},
+    {n: pending, l:"尚未開標", cls:"accent"},
+    {n: failed, l:"流標／取消", cls:"warn"},
+    {n: avgPrem===null?"–":(avgPrem>=0?"+":"")+avgPrem.toFixed(2)+"%", l:"平均得標成本溢價率(加權)", cls:""},
+  ];
+  const el = document.getElementById("statsRow");
+  el.innerHTML = "";
+  stats.forEach(s=>{
+    const d = document.createElement("div");
+    d.className = "stat " + s.cls;
+    d.innerHTML = `<div class="n">${s.n}</div><div class="l">${s.l}</div>`;
+    el.appendChild(d);
+  });
+}
+
+document.getElementById("searchBox").addEventListener("input", render);
+let scaleVal = 1;
+function applyScale(){ document.documentElement.style.setProperty("--scale", scaleVal.toFixed(2)); }
+document.getElementById("fontUp").addEventListener("click", ()=>{ scaleVal = Math.min(1.6, scaleVal+0.1); applyScale(); requestAnimationFrame(syncHScroll); });
+document.getElementById("fontDown").addEventListener("click", ()=>{ scaleVal = Math.max(0.8, scaleVal-0.1); applyScale(); requestAnimationFrame(syncHScroll); });
+
+const tableWrapEl = document.getElementById("tableWrap");
+const hScrollRangeEl = document.getElementById("hScrollRange");
+tableWrapEl.addEventListener("scroll", ()=>{ hScrollRangeEl.value = tableWrapEl.scrollLeft; });
+hScrollRangeEl.addEventListener("input", ()=>{ tableWrapEl.scrollLeft = Number(hScrollRangeEl.value); });
+window.addEventListener("resize", ()=>requestAnimationFrame(syncHScroll));
+
+render();
+</script>
