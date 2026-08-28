@@ -6,6 +6,8 @@
   2. 若CB尚未掛牌、FinMind還查不到，改用統一證券CBAS資訊網「預計發行CB資料/最近掛牌」
      (https://cbas16889.pscnet.com.tw/marketInfo/expectedRelease/) 的 conversion_price 當備援
 - 投標結束日現股收盤價: FinMind TaiwanStockPrice，母公司股票代號=CB代號前4碼
+- 投標結束日前75日股價波動率: 投標結束日往前75個交易日(含當天)母公司現股收盤價的變異係數
+  (標準差 ÷ 平均值)，不是用報酬率算的年化波動率
 - 掛牌後現股/CB價格: 以「撥券日期(上市、上櫃日期)」為掛牌第一天，往後抓母公司現股(TaiwanStockPrice)
   與CB自己的市場價格(TaiwanStockConvertibleBondDaily)各6個交易日；此欄位公式皆已用原始
   「CB資料表 的副本.xlsx」逐筆反推驗證過(見開發過程)，只有CB還沒掛牌時才會是空的。
@@ -99,11 +101,24 @@ def save_cache(cache: dict):
     )
 
 
+def _price_volatility(closes: list[float]) -> float | None:
+    """變異係數 = 標準差(樣本) ÷ 平均值，至少要有2筆資料才算得出來"""
+    if len(closes) < 2:
+        return None
+    mean = sum(closes) / len(closes)
+    if not mean:
+        return None
+    variance = sum((c - mean) ** 2 for c in closes) / (len(closes) - 1)
+    return (variance ** 0.5) / mean
+
+
 def fetch_one(cb_code: str, bid_end_date: str, listing_date: str, cbas_prices: dict) -> dict:
-    """回傳轉換價、投標結束日現股收盤價，以及掛牌後6個交易日的現股/CB價格序列"""
+    """回傳轉換價、投標結束日現股收盤價、投標結束日前75日股價波動率，
+    以及掛牌後6個交易日的現股/CB價格序列"""
     result = {
         "轉換價": None,
         "投標結束日現股收盤價": None,
+        "投標結束日前75日股價波動率": None,
         "掛牌現股序列": None,  # [[date, open, close], ...] 最多6筆
         "掛牌CB序列": None,  # [[date, open, close, max], ...] 最多6筆
     }
@@ -124,6 +139,12 @@ def fetch_one(cb_code: str, bid_end_date: str, listing_date: str, cbas_prices: d
         prices = _get("TaiwanStockPrice", parent_code, bid_end_date, bid_end_date)
         if prices:
             result["投標結束日現股收盤價"] = prices[0].get("close")
+
+        vol_end = datetime.strptime(bid_end_date, "%Y-%m-%d").date()
+        vol_start = vol_end - timedelta(days=150)  # 150個日曆天足夠涵蓋75個交易日(含假日緩衝)
+        vol_rows = _get("TaiwanStockPrice", parent_code, vol_start.isoformat(), vol_end.isoformat())
+        vol_closes = [r["close"] for r in vol_rows if r.get("close")][-75:]
+        result["投標結束日前75日股價波動率"] = _price_volatility(vol_closes)
 
     if listing_date:
         start = datetime.strptime(listing_date, "%Y-%m-%d").date()
@@ -148,6 +169,10 @@ def fetch_one(cb_code: str, bid_end_date: str, listing_date: str, cbas_prices: d
 
 def _is_resolved(entry: dict) -> bool:
     if entry.get("轉換價") is None or entry.get("投標結束日現股收盤價") is None:
+        return False
+    # 舊快取沒有這個欄位(新增功能前抓的)，強制重抓一次補上；沒抓到值(母公司歷史資料不足75天)
+    # 就算resolved，不用每次重試
+    if "投標結束日前75日股價波動率" not in entry:
         return False
     # 掛牌現股/CB序列要滿6筆才算真的解決；還沒掛牌滿20天前，每次都會重試(fetch_one內部會自動跳過還沒到的)
     for key in ("掛牌現股序列", "掛牌CB序列"):
