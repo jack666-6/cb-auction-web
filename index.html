@@ -415,15 +415,15 @@ function renderStats(idx){
   const failed = rows.filter(r=>r[idx["取消競價拍賣(流標或取消)"]]==="Y").length;
   const pending = rows.filter(r=>!r[idx["得標總金額(元)"]] && r[idx["取消競價拍賣(流標或取消)"]]!=="Y").length;
   const done = total - failed - pending;
-  const premiums = rows.map(r=>r[idx["得標加權平均成本溢價率"]]).filter(v=>v!==null && v!==undefined);
-  const avgPrem = premiums.length ? (premiums.reduce((a,b)=>a+b,0)/premiums.length*100) : null;
+  const d6Returns = rows.map(r=>r[idx["掛牌第六天得標加權平均成本報酬率"]]).filter(v=>v!==null && v!==undefined);
+  const avgD6Return = d6Returns.length ? (d6Returns.reduce((a,b)=>a+b,0)/d6Returns.length*100) : null;
 
   const stats = [
     {n: total, l:"2026年競拍檔數", cls:""},
     {n: done, l:"已完成競拍", cls:"accent"},
     {n: pending, l:"尚未開標", cls:"accent"},
     {n: failed, l:"流標／取消", cls:"warn"},
-    {n: avgPrem===null?"–":(avgPrem>=0?"+":"")+avgPrem.toFixed(2)+"%", l:"平均得標成本溢價率(加權)", cls:""},
+    {n: avgD6Return===null?"–":(avgD6Return>=0?"+":"")+avgD6Return.toFixed(2)+"%", l:"平均得標成本D6報酬率(加權)", cls:""},
   ];
   const el = document.getElementById("statsRow");
   el.innerHTML = "";
