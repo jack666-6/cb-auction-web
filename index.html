@@ -7,6 +7,8 @@
     --gain:#B23A2A; --gain-soft:#F6E6E1;
     --loss:#1F7A50; --loss-soft:#E1F0E6;
     --warn:#9A6A16; --warn-soft:#F3E7D2;
+    --danger:#A61B1B; --danger-soft:#FBDADA;
+    --spot-bg:#E6F0F7;
     --shadow: 0 1px 2px rgba(20,30,25,.06), 0 8px 24px rgba(20,30,25,.06);
     --font-display: "Songti TC","Iowan Old Style","PMingLiU","Palatino Linotype", Georgia, serif;
     --font-body: -apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei","Segoe UI",sans-serif;
@@ -21,6 +23,8 @@
       --gain:#E28073; --gain-soft:#3A211D;
       --loss:#6FCB99; --loss-soft:#173226;
       --warn:#E6BE79; --warn-soft:#3A2E17;
+      --danger:#FF8A80; --danger-soft:#4A1616;
+      --spot-bg:#1B2A3D;
       --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
     }
   }
@@ -31,6 +35,8 @@
     --gain:#E28073; --gain-soft:#3A211D;
     --loss:#6FCB99; --loss-soft:#173226;
     --warn:#E6BE79; --warn-soft:#3A2E17;
+    --danger:#FF8A80; --danger-soft:#4A1616;
+    --spot-bg:#1B2A3D;
     --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
   }
   :root[data-theme="light"]{
@@ -40,6 +46,8 @@
     --gain:#B23A2A; --gain-soft:#F6E6E1;
     --loss:#1F7A50; --loss-soft:#E1F0E6;
     --warn:#9A6A16; --warn-soft:#F3E7D2;
+    --danger:#A61B1B; --danger-soft:#FBDADA;
+    --spot-bg:#E6F0F7;
     --shadow: 0 1px 2px rgba(20,30,25,.06), 0 8px 24px rgba(20,30,25,.06);
   }
 
@@ -123,6 +131,9 @@
   td.gain{ color:var(--gain); }
   td.loss{ color:var(--loss); }
   td.dash{ color:var(--muted-2); text-align:right; }
+  td.td-warn{ background:var(--warn-soft) !important; color:var(--warn); font-weight:600; }
+  td.td-danger{ background:var(--danger-soft) !important; color:var(--danger); font-weight:600; }
+  td.td-spot{ background:var(--spot-bg) !important; }
 
   .frozen{ position:sticky; background:inherit; z-index:2; }
   thead .frozen{ z-index:4; }
@@ -193,6 +204,9 @@
     <span><i style="background:var(--loss)"></i>負值(跌/折價)</span>
     <span><i style="background:var(--warn)"></i>流標／取消</span>
     <span><i style="background:var(--accent)"></i>尚未開標</span>
+    <span><i style="background:var(--warn-soft)"></i>合格投標倍數 &gt;3</span>
+    <span><i style="background:var(--danger-soft)"></i>合格投標倍數 &gt;5</span>
+    <span><i style="background:var(--spot-bg)"></i>投標結束日parity%</span>
     <span>— 表示資料尚未產生(例如尚未掛牌)</span>
   </div>
 
@@ -283,33 +297,49 @@ let frozenLeft = {}; (function(){ let acc=0; FROZEN.forEach(c=>{ frozenLeft[c]=a
 function fmtInt(n){ return Math.round(n).toLocaleString("en-US"); }
 function fmtPrice(n){ return (Math.round(n*100)/100).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}); }
 
+// 這幾欄不管有沒有值都要有固定的背景色，一眼就能在橫向一長排數字裡認出它們
+const SPOTLIGHT_COLS = new Set(["投標結束日parity%"]);
+
 function cellHTML(col,val){
   const t = COLTYPE[col];
+  const spot = SPOTLIGHT_COLS.has(col) ? " td-spot" : "";
   if(val===null || val===undefined || val===""){
-    return {cls:"dash", html:"–"};
+    return {cls:"dash"+spot, html:"–"};
   }
+  let out;
   switch(t){
-    case "text": return {cls:"txt", html:val};
-    case "name": return {cls:"name", html:val};
-    case "code": return {cls:"code num", html:val};
-    case "date": return {cls:"num", html:val};
-    case "int": return {cls:"num", html: val===0 ? "–" : fmtInt(val)};
-    case "price": return {cls:"num", html: val===0 ? "–" : fmtPrice(val)};
-    case "num2": return {cls:"num", html: fmtPrice(val)};
-    case "mult": return {cls:"num", html: fmtPrice(val)+"×"};
-    case "pct_raw": return {cls:"num", html: fmtPrice(val)+"%"};
-    case "pct_frac": return {cls:"num", html: fmtPrice(val*100)+"%"};
+    case "text": out = {cls:"txt", html:val}; break;
+    case "name": out = {cls:"name", html:val}; break;
+    case "code": out = {cls:"code num", html:val}; break;
+    case "date": out = {cls:"num", html:val}; break;
+    case "int": out = {cls:"num", html: val===0 ? "–" : fmtInt(val)}; break;
+    case "price": out = {cls:"num", html: val===0 ? "–" : fmtPrice(val)}; break;
+    case "num2": out = {cls:"num", html: fmtPrice(val)}; break;
+    case "mult": {
+      // 合格投標倍數：>5倍標紅色(過熱)，>3倍標黃色(偏熱)
+      let heat = "";
+      if(val>5) heat = " td-danger";
+      else if(val>3) heat = " td-warn";
+      out = {cls:"num"+heat, html: fmtPrice(val)+"×"};
+      break;
+    }
+    case "pct_raw": out = {cls:"num", html: fmtPrice(val)+"%"}; break;
+    case "pct_frac": out = {cls:"num", html: fmtPrice(val*100)+"%"}; break;
     case "pct_raw_s": {
       const sign = val>0?"gain":(val<0?"loss":"");
-      return {cls:"num "+sign, html:(val>0?"+":"")+fmtPrice(val)+"%"};
+      out = {cls:"num "+sign, html:(val>0?"+":"")+fmtPrice(val)+"%"};
+      break;
     }
     case "pct_frac_s": {
       const p = val*100; const sign = p>0?"gain":(p<0?"loss":"");
-      return {cls:"num "+sign, html:(p>0?"+":"")+fmtPrice(p)+"%"};
+      out = {cls:"num "+sign, html:(p>0?"+":"")+fmtPrice(p)+"%"};
+      break;
     }
-    case "flag": return {cls:"num", html: val==="Y" ? '<span class="badge warn">流標</span>' : "–"};
-    default: return {cls:"num", html:String(val)};
+    case "flag": out = {cls:"num", html: val==="Y" ? '<span class="badge warn">流標</span>' : "–"}; break;
+    default: out = {cls:"num", html:String(val)};
   }
+  out.cls += spot;
+  return out;
 }
 
 function buildHead(){
