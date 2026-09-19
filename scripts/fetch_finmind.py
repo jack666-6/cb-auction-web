@@ -6,7 +6,7 @@
   2. 若CB尚未掛牌、FinMind還查不到，改用統一證券CBAS資訊網「預計發行CB資料/最近掛牌」
      (https://cbas16889.pscnet.com.tw/marketInfo/expectedRelease/) 的 conversion_price 當備援
 - 投標結束日現股收盤價: FinMind TaiwanStockPrice，母公司股票代號=CB代號前4碼
-- 投標結束日前60日年化波動率: 投標結束日往前60個交易日(含當天)母公司現股收盤價，
+- 投標結束日前60日年化波動率: 到投標結束日「前一個交易日」為止(不含投標結束日當天)的60個交易日母公司現股收盤價，
   算每日log報酬率的樣本標準差，再乘以sqrt(252)年化(教科書式歷史波動率，跟選擇權/CB
   評價模型裡的sigma是同一種定義)
 - 掛牌後現股/CB價格: 以「撥券日期(上市、上櫃日期)」為掛牌第一天，往後抓母公司現股(TaiwanStockPrice)
@@ -35,6 +35,7 @@ TOKEN = (
     "0M2SsYqe4BkjT7540-rSX7rMLTFjiLdoZHplblQ8h9g"
 )
 API_URL = "https://api.finmindtrade.com/api/v4/data"
+VOL_SETTING = "annual_log_60d_end_prev_day"
 CBAS_URL = "https://cbas16889.pscnet.com.tw/api/CbasQuote/GetRecentlyListed"
 
 
@@ -148,11 +149,15 @@ def fetch_one(cb_code: str, bid_end_date: str, listing_date: str, cbas_prices: d
         if prices:
             result["投標結束日現股收盤價"] = prices[0].get("close")
 
-        vol_end = datetime.strptime(bid_end_date, "%Y-%m-%d").date()
+        # 視窗到「投標結束日的前一個交易日」為止(不含投標結束日當天)：投標當天的收盤價
+        # 在投標截止前還不存在，投標人能參考的最後一個收盤價是前一個交易日
+        vol_end = datetime.strptime(bid_end_date, "%Y-%m-%d").date() - timedelta(days=1)
         vol_start = vol_end - timedelta(days=120)  # 120個日曆天足夠涵蓋60個交易日(含假日緩衝)
         vol_rows = _get("TaiwanStockPrice", parent_code, vol_start.isoformat(), vol_end.isoformat())
         vol_closes = [r["close"] for r in vol_rows if r.get("close")][-60:]
         result["投標結束日前60日年化波動率"] = _price_volatility(vol_closes)
+        if vol_rows:  # API有回資料才記下設定版本，沒回資料(可能是暫時性問題)下次還會重試
+            result["波動率設定"] = VOL_SETTING
 
     if listing_date:
         start = datetime.strptime(listing_date, "%Y-%m-%d").date()
@@ -180,7 +185,8 @@ def _is_resolved(entry: dict) -> bool:
         return False
     # 舊快取沒有這個欄位(新增功能前抓的)，強制重抓一次補上；沒抓到值(母公司歷史資料不足60天)
     # 就算resolved，不用每次重試
-    if "投標結束日前60日年化波動率" not in entry:
+    # 波動率的算法/視窗改過時，改這個常數就會讓舊快取全部重算一次
+    if entry.get("波動率設定") != VOL_SETTING:
         return False
     # 掛牌現股/CB序列要滿6筆才算真的解決；還沒掛牌滿20天前，每次都會重試(fetch_one內部會自動跳過還沒到的)
     for key in ("掛牌現股序列", "掛牌CB序列"):
