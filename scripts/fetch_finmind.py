@@ -45,6 +45,12 @@ def fetch_cbas_conversion_prices() -> dict:
     該站憑證鏈缺少 Subject Key Identifier，Python的嚴格SSL驗證會擋下(curl不會)，
     這裡只針對這個已知有此憑證問題的公開唯讀資料網域關閉憑證驗證。
     """
+    previous = {}
+    if CBAS_CACHE.exists():
+        try:
+            previous = json.loads(CBAS_CACHE.read_text(encoding="utf-8"))
+        except ValueError:
+            previous = {}
     try:
         import urllib3
 
@@ -53,8 +59,9 @@ def fetch_cbas_conversion_prices() -> dict:
         resp.raise_for_status()
         payload = resp.json()
     except (requests.RequestException, ValueError):
-        return {}
-    out = {}
+        # 站台暫時掛掉(例如回500)時沿用上次存的，不要回空dict害已經抓到的轉換價被洗掉
+        return previous
+    out = dict(previous)  # 已經掛牌掉出「最近掛牌」清單的舊資料也保留，合併而不是覆蓋
     for item in payload.get("result", []):
         cb_code = item.get("cb_code")
         price = item.get("conversion_price")
@@ -214,6 +221,10 @@ def main():
         if cb_code in cache and _is_resolved(cache[cb_code]):
             continue
         data = fetch_one(cb_code, bid_end, listing_date, cbas_prices)
+        # API暫時失敗只會讓欄位變None，不能把之前已經抓到的值洗掉
+        for key, old_val in (cache.get(cb_code) or {}).items():
+            if data.get(key) is None and old_val is not None and key != "波動率設定":
+                data[key] = old_val
         cache[cb_code] = data
         updated += 1
         if updated % 20 == 0:

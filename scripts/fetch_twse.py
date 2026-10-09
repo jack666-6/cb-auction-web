@@ -4,6 +4,7 @@
 證交所僅提供民國105年(西元2016年)起的資料。
 """
 import json
+import time
 import re
 from datetime import datetime, date
 from pathlib import Path
@@ -39,13 +40,22 @@ def _to_date(s):
 
 
 def fetch_year(year: int) -> list[dict]:
-    resp = requests.get(
-        API_URL,
-        params={"date": f"{year}0101", "response": "json"},
-        timeout=20,
-    )
-    resp.raise_for_status()
-    payload = resp.json()
+    last_err = None
+    for attempt in range(4):  # 證交所偶爾逾時，重試幾次再放棄
+        try:
+            resp = requests.get(
+                API_URL,
+                params={"date": f"{year}0101", "response": "json"},
+                timeout=30,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            break
+        except (requests.RequestException, ValueError) as e:
+            last_err = e
+            time.sleep(5 * (attempt + 1))
+    else:
+        raise last_err
     if payload.get("stat") != "OK":
         return []
     rows = []
