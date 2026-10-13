@@ -102,7 +102,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
 <header>
   <h1>CB 溢價收斂監測</h1>
   <span class="seg" id="seg-view">
-    <button data-view="prem">溢價收斂</button><button data-view="cost">回到競拍成本</button><button data-view="ipo">近期掛牌詢圈</button>
+    <button data-view="prem">溢價收斂</button><button data-view="cost">回到競拍成本</button><button data-view="ipo">即將掛牌詢圈</button>
   </span>
   <span class="meta" id="meta"></span>
 </header>
@@ -146,16 +146,16 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
 </main>
 <section id="ipo" hidden>
   <div class="card tablewrap"><table><thead><tr>
-    <th class="l">CB</th><th>掛牌日</th><th>狀態</th><th>轉換價</th><th>基準現股價</th><th>Parity</th><th>發行價</th><th>發行價對 Parity</th>
-    <th>CB 現價</th><th>發行額</th><th>信評／擔保</th><th>年期</th><th>賣回</th><th>詢圈期間</th><th>主辦</th>
+    <th class="l">CB</th><th>掛牌日</th><th>狀態</th><th>轉換價</th><th>基準現股價</th><th>Parity</th><th>掛牌參考價</th><th>空間</th>
+    <th>首日漲停價</th><th>漲停買進對 Parity</th><th>判斷</th><th>發行額</th><th>信評／擔保</th><th>年期</th><th>賣回</th><th>詢圈期間</th><th>主辦</th>
   </tr></thead><tbody id="ipo-body"></tbody></table>
-  <div class="empty" id="ipo-empty" hidden>目前清單裡沒有詢圈 CB。</div></div>
+  <div class="empty" id="ipo-empty" hidden>目前沒有即將掛牌的詢圈 CB。</div></div>
 </section>
 
 <footer>
   溢價率 = CB 價 ÷ 平價 − 1；平價 = 現股收盤 ÷ 轉換價 × 100。CB 價當日有成交用收盤價，無成交沿用參考價。
   溢價變化以百分點（pp）計，負值代表收斂。
-  近期掛牌詢圈：Parity = 掛牌前一個交易日現股收盤 ÷ 轉換價 × 100，尚未掛牌的先用最新收盤暫估；清單來自統一證券 CBAS「最近掛牌」，扣掉證交所有競拍公告的。
+  即將掛牌詢圈：Parity = 掛牌前一個交易日現股收盤 ÷ 轉換價 × 100（掛牌日之前先用最新收盤，每晚更新）；掛牌參考價 = 發行價；空間 = Parity − 參考價；首日漲停價 = 參考價 × 1.1。清單來自統一證券 CBAS，扣掉證交所有競拍公告的。
   競拍成本 = 證交所公告的得標加權平均價格（未含得標手續費）；距成本 = CB 價 ÷ 競拍均價 − 1；詢圈發行的 CB 沒有競拍成本。資料來源 FinMind、證交所，每個交易日晚上自動更新。
 </footer>
 
@@ -452,36 +452,37 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
   }
 
   function renderIpo() {
-    const list = D.ipo || [], byId = Object.fromEntries(D.cbs.map((c) => [c.id, c]));
-    const today = new Date(D.generated.slice(0, 10));
-    const row = (x) => {
+    // 只看還沒掛牌和今天掛牌的，日期以看網頁的人的當天為準
+    const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const day = (d) => { const [y, m, dd] = d.split('-').map(Number); return new Date(y, m - 1, dd); };
+    const list = (D.ipo || []).filter((x) => day(x.listed) >= today).map((x) => {
+      const ref = x.issue || 100;                                 // 掛牌首日參考價 = 發行價
       const par = x.px ? x.px / x.conv * 100 : null;
-      const gap = par && x.issue ? (x.issue / par - 1) * 100 : null;
-      const days = Math.round((new Date(x.listed) - today) / 864e5);
-      const cb = byId[x.id];
-      const chip = x.final ? `<span class="chip">已掛牌</span>` : `<span class="chip pre">${days <= 0 ? '今日掛牌' : days + ' 天後掛牌'}</span>`;
-      return `<tr><td>${x.name}<span class="id">${x.id}</span></td>
-        <td class="num">${x.listed}</td><td>${chip}</td>
+      const limit = Math.floor(ref * 1.1 / 0.05 + 1e-6) * 0.05;   // 漲幅 10%，升降單位 0.05
+      return { ...x, ref, par, limit, room: par == null ? null : par - ref,
+        days: Math.round((day(x.listed) - today) / 864e5) };
+    });
+    const verdict = (x) => x.par == null ? '' : x.par > x.limit ? '<span class="chip new">Parity 高於漲停價</span>'
+      : x.par > x.ref ? '<span class="chip">有空間，未過漲停</span>' : '<span class="chip">無空間</span>';
+    $('ipo-body').innerHTML = list.map((x) => `<tr><td>${x.name}<span class="id">${x.id}</span></td>
+        <td class="num">${x.listed}</td>
+        <td><span class="chip pre">${x.days <= 0 ? '今日掛牌' : x.days + ' 天後掛牌'}</span></td>
         <td class="num">${f2(x.conv)}</td>
-        <td class="num">${f2(x.px)}<span class="sub">${x.pxDate ? md(x.pxDate) + (x.final ? '' : ' 暫估') : ''}</span></td>
-        <td class="num"><b>${f1(par)}</b></td>
-        <td class="num">${f2(x.issue)}</td>
-        <td class="num">${gap == null ? '–' : sign(gap) + '%'}</td>
-        <td class="num">${cb ? f2(cb.ref[L]) : '–'}</td>
+        <td class="num">${f2(x.px)}<span class="sub">${x.pxDate ? md(x.pxDate) : ''}</span></td>
+        <td class="num"><b>${f1(x.par)}</b></td>
+        <td class="num">${f2(x.ref)}</td>
+        <td class="num"><b>${sign(x.room)}</b></td>
+        <td class="num">${x.limit.toFixed(2)}</td>
+        <td class="num">${x.par == null ? '–' : sign((x.limit / x.par - 1) * 100) + '%'}</td>
+        <td>${verdict(x)}</td>
         <td class="num">${x.size} 億</td>
-        <td>${x.tcri}</td><td>${x.years}</td><td>${x.put}</td><td>${x.inquiry}</td><td>${x.broker}</td></tr>`;
-    };
-    const up = list.filter((x) => !x.final), done = list.filter((x) => x.final).reverse();
-    const grp = (t) => `<tr class="grp"><td colspan="15">${t}</td></tr>`;
-    $('ipo-body').innerHTML = (up.length ? grp('即將掛牌') + up.map(row).join('') : grp('即將掛牌：目前沒有'))
-      + (done.length ? grp('近期已掛牌（Parity 已定）') + done.map(row).join('') : '');
+        <td>${x.tcri}</td><td>${x.years}</td><td>${x.put}</td><td>${x.inquiry}</td><td>${x.broker}</td></tr>`).join('');
     $('ipo-empty').hidden = list.length > 0;
-    const pars = list.filter((x) => x.px).map((x) => x.px / x.conv * 100);
-    const next = up[0];
+    const withPar = list.filter((x) => x.par != null), next = list[0];
     $('tiles').innerHTML = [
-      ['即將掛牌', up.length, '檔詢圈 CB'],
-      ['近期已掛牌', done.length, '檔詢圈 CB'],
-      ['Parity ≥ 100', pars.filter((v) => v >= 100).length, `共 ${pars.length} 檔`],
+      ['即將掛牌', list.length, '檔詢圈 CB'],
+      ['Parity 高於參考價', withPar.filter((x) => x.room > 0).length, '掛牌有空間'],
+      ['Parity 高於漲停價', withPar.filter((x) => x.par > x.limit).length, '掛漲停買仍低於 Parity'],
       ['下一檔掛牌', next ? next.name : '–', next ? next.listed : ''],
     ].map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`).join('');
   }
