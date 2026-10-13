@@ -29,6 +29,7 @@ header { padding: 20px 24px 8px; display: flex; align-items: baseline; gap: 16px
 h1 { font-size: 20px; margin: 0; font-weight: 650; }
 header .meta { color: var(--text-2); font-size: 13px; }
 .controls { padding: 8px 24px 12px; display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+.controls label[hidden] { display: none; }
 .controls label { color: var(--text-2); font-size: 13px; display: flex; align-items: center; gap: 6px; }
 .controls input[type=number] { width: 64px; }
 .controls input, .controls select { font: inherit; color: var(--text); background: var(--surface);
@@ -93,6 +94,9 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
 <body>
 <header>
   <h1>CB 溢價收斂監測</h1>
+  <span class="seg" id="seg-view">
+    <button data-view="prem">溢價收斂</button><button data-view="cost">回到競拍成本</button>
+  </span>
   <span class="meta" id="meta"></span>
 </header>
 
@@ -102,9 +106,16 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       <button data-n="3">3日</button><button data-n="5">5日</button><button data-n="10">10日</button><button data-n="20">20日</button>
     </span>
   </label>
-  <label>平價 ≥ <input type="number" id="f-par" value="100" step="5"></label>
+  <label data-for="prem">平價 ≥ <input type="number" id="f-par" value="100" step="5"></label>
+  <label data-for="cost">距成本
+    <select id="f-cost">
+      <option value="near">成本附近（−5% ～ +3%）</option>
+      <option value="below">低於成本（全部）</option>
+      <option value="all">全部</option>
+    </select>
+  </label>
   <label>期間成交 ≥ <input type="number" id="f-vol" value="50" step="10"> 張</label>
-  <label>轉換期
+  <label data-for="prem">轉換期
     <select id="f-conv">
       <option value="all">全部</option>
       <option value="new">剛開轉（30 天內）</option>
@@ -129,7 +140,8 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
 
 <footer>
   溢價率 = CB 價 ÷ 平價 − 1；平價 = 現股收盤 ÷ 轉換價 × 100。CB 價當日有成交用收盤價，無成交沿用參考價。
-  溢價變化以百分點（pp）計，負值代表收斂。資料來源 FinMind，每個交易日晚上自動更新。
+  溢價變化以百分點（pp）計，負值代表收斂。
+  競拍成本 = 證交所公告的得標加權平均價格（未含得標手續費）；距成本 = CB 價 ÷ 競拍均價 − 1；詢圈發行的 CB 沒有競拍成本。資料來源 FinMind、證交所，每個交易日晚上自動更新。
 </footer>
 
 <script src="data.js"></script>
@@ -151,7 +163,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     c.convDays = c.convStart ? Math.round((new Date(D.asof) - new Date(c.convStart)) / 864e5) : null;
   }
 
-  const state = { n: 5, sort: 'dPrem', dir: 1, sel: '61876' };
+  const state = { view: 'prem', n: 5, sort: 'dPrem', dir: 1, sel: '61876' };
   if (!D.cbs.some((c) => c.id === state.sel)) state.sel = null;
 
   function metrics(c, n) {
@@ -164,10 +176,27 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       ref: c.ref[L], par: c.par[L], vol,
       dPx: (c.px[L] / c.px[i0] - 1) * 100, dRef: (c.ref[L] / c.ref[i0] - 1) * 100,
       convDays: c.convDays, name: c.name,
+      cost: c.auc ? c.auc.avg : null, low: c.auc ? c.auc.low : null,
+      dCost: c.auc ? (c.ref[L] / c.auc.avg - 1) * 100 : null,
+      dLow: c.auc && c.auc.low ? (c.ref[L] / c.auc.low - 1) * 100 : null,
+      listed: c.auc ? c.auc.listed : '',
     };
   }
 
-  const cols = [
+  const costCols = [
+    { k: 'name', t: 'CB' },
+    { k: 'ref', t: 'CB 價' },
+    { k: 'cost', t: '競拍均價' },
+    { k: 'dCost', t: '距成本 %' },
+    { k: 'low', t: '最低得標' },
+    { k: 'spark', t: '近 20 日 CB 價', nosort: true },
+    { k: 'dRef', t: 'CB %' },
+    { k: 'par', t: '平價' },
+    { k: 'premNow', t: '溢價率' },
+    { k: 'listed', t: '掛牌日' },
+    { k: 'vol', t: '成交張' },
+  ];
+  const premCols = [
     { k: 'name', t: 'CB' },
     { k: 'ref', t: 'CB 價' },
     { k: 'par', t: '平價' },
@@ -179,6 +208,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     { k: 'convDays', t: '轉換期' },
     { k: 'vol', t: '成交張' },
   ];
+  const cols = () => state.view === 'cost' ? costCols : premCols;
 
   function convChip(m) {
     const d = m.convDays;
@@ -188,8 +218,8 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     return `<span class="chip">已開轉</span>`;
   }
 
-  function spark(c) {
-    const s = c.prem.slice(-20), v = s.filter((x) => x != null);
+  function spark(series) {
+    const s = series.slice(-20), v = s.filter((x) => x != null);
     if (v.length < 2) return '';
     const lo = Math.min(...v), hi = Math.max(...v), W = 84, H = 22, r = hi - lo || 1;
     const pts = s.map((x, i) => x == null ? null : `${(i / (s.length - 1) * W).toFixed(1)},${(H - 2 - (x - lo) / r * (H - 4)).toFixed(1)}`).filter(Boolean);
@@ -204,8 +234,14 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     for (const c of D.cbs) {
       const m = metrics(c, state.n);
       if (!m) continue;
+      if (state.view === 'cost' && m.cost == null) continue;
       if (q) { if (!(c.name.toLowerCase().includes(q) || c.id.includes(q))) continue; }
-      else {
+      else if (state.view === 'cost') {
+        const fc = $('f-cost').value;
+        if (m.vol < vol) continue;
+        if (fc === 'near' && !(m.dCost >= -5 && m.dCost <= 3)) continue;
+        if (fc === 'below' && !(m.dCost < 0)) continue;
+      } else {
         if (m.par < par || m.vol < vol) continue;
         if (cv === 'new' && !(m.convDays != null && m.convDays >= 0 && m.convDays <= 30)) continue;
         if (cv === 'pre' && !(m.convDays != null && m.convDays < 0)) continue;
@@ -213,24 +249,37 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       out.push(m);
     }
     const k = state.sort;
-    out.sort((a, b) => (k === 'name' ? a.name.localeCompare(b.name, 'zh-Hant') : (a[k] ?? 1e9) - (b[k] ?? 1e9)) * state.dir);
+    out.sort((a, b) => (k === 'name' || k === 'listed' ? String(a[k]).localeCompare(String(b[k]), 'zh-Hant') : (a[k] ?? 1e9) - (b[k] ?? 1e9)) * state.dir);
     return out;
   }
 
   function renderTable() {
-    $('thead').innerHTML = cols.map((c) =>
+    $('thead').innerHTML = cols().map((c) =>
       `<th data-k="${c.k}" class="${state.sort === c.k ? 'sorted' : ''}">${c.k === 'dPx' || c.k === 'dRef' || c.k === 'vol' ? state.n + '日' : ''}${c.t}${state.sort === c.k ? (state.dir > 0 ? ' ↑' : ' ↓') : ''}</th>`).join('');
     const rs = rows();
-    const scale = Math.max(10, ...rs.map((m) => Math.abs(m.dPrem)));
+    const dk = state.view === 'cost' ? 'dCost' : 'dPrem';
+    const scale = Math.max(state.view === 'cost' ? 5 : 10, ...rs.map((m) => Math.abs(m[dk])));
     $('tbody').innerHTML = rs.map((m) => {
-      const w = Math.min(50, Math.abs(m.dPrem) / scale * 50);
+      const w = Math.min(50, Math.abs(m[dk]) / scale * 50);
+      if (state.view === 'cost') return `<tr data-id="${m.c.id}" class="${m.c.id === state.sel ? 'sel' : ''}">
+        <td>${m.c.name}<span class="id">${m.c.id}</span></td>
+        <td class="num"><b>${f2(m.ref)}</b></td>
+        <td class="num">${f2(m.cost)}</td>
+        <td class="num"><span class="dbar"><i class="${m.dCost > 0 ? 'pos' : ''}" style="width:${w}%"></i></span>${sign(m.dCost)}%</td>
+        <td class="num">${f2(m.low)}</td>
+        <td>${spark(m.c.ref)}</td>
+        <td class="num">${sign(m.dRef)}%</td>
+        <td class="num">${f1(m.par)}</td>
+        <td class="num">${f1(m.premNow)}%</td>
+        <td class="num">${m.listed}</td>
+        <td class="num">${m.vol.toLocaleString()}</td></tr>`;
       return `<tr data-id="${m.c.id}" class="${m.c.id === state.sel ? 'sel' : ''}">
         <td>${m.c.name}<span class="id">${m.c.id}</span></td>
         <td class="num">${f2(m.ref)}</td>
         <td class="num">${f1(m.par)}</td>
         <td class="num">${f1(m.premThen)}%<span class="arrow">→</span><b>${f1(m.premNow)}%</b></td>
         <td class="num"><span class="dbar"><i class="${m.dPrem > 0 ? 'pos' : ''}" style="width:${w}%"></i></span>${sign(m.dPrem)}</td>
-        <td>${spark(m.c)}</td>
+        <td>${spark(m.c.prem)}</td>
         <td class="num">${sign(m.dPx)}%</td>
         <td class="num">${sign(m.dRef)}%</td>
         <td>${convChip(m)}</td>
@@ -241,6 +290,19 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
   }
 
   function renderTiles(rs) {
+    if (state.view === 'cost') {
+      const all = D.cbs.filter((c) => c.auc).map((c) => ({ c, d: (c.ref[L] / c.auc.avg - 1) * 100 }));
+      const near = all.filter((x) => x.d >= -5 && x.d <= 3);
+      const closest = rs.slice().sort((a, b) => Math.abs(a.dCost) - Math.abs(b.dCost))[0];
+      $('tiles').innerHTML = [
+        ['符合篩選', rs.length, '檔 CB'],
+        ['有競拍成本', all.length, `全市場 ${D.cbs.length} 檔，其餘為詢圈`],
+        ['低於成本', all.filter((x) => x.d < 0).length, '檔（全市場，不含成交量篩選）'],
+        ['成本附近 −5% ～ +3%', near.length, `其中低於成本 ${near.filter((x) => x.d < 0).length} 檔`],
+        ['最貼近成本', closest ? sign(closest.dCost) + '%' : '–', closest ? closest.c.name : ''],
+      ].map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`).join('');
+      return;
+    }
     const conv = rs.filter((m) => m.dPrem <= -5);
     const fresh = rs.filter((m) => m.convDays != null && m.convDays >= 0 && m.convDays <= 30);
     const sorted = rs.map((m) => m.dPrem).sort((a, b) => a - b);
@@ -263,6 +325,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     const all = series.flatMap((s) => s.v.filter((v) => v != null));
     let lo = Math.min(...all), hi = Math.max(...all);
     if (opts.zero) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+    if (opts.hline) { lo = Math.min(lo, opts.hline.v); hi = Math.max(hi, opts.hline.v); }
     const pad = (hi - lo || 1) * 0.08; lo -= pad; hi += pad;
     const y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
     const step = [1, 2, 5, 10, 20, 25, 50, 100, 200, 500].find((s) => (hi - lo) / s <= 5) || 1000;
@@ -277,6 +340,10 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     if (opts.mark) {
       const mi = dates.findIndex((d) => d >= opts.mark);
       if (mi > 0) g += `<line x1="${x(mi)}" x2="${x(mi)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--text-3)" stroke-width="1" stroke-dasharray="3 3"/><text class="lab" x="${x(mi) - 5}" y="${m.t + 10}" text-anchor="end">開始轉換 ${md(opts.mark)}</text>`;
+    }
+    if (opts.hline) {
+      const hy = y(opts.hline.v);
+      g += `<line x1="${m.l}" x2="${W - m.r}" y1="${hy}" y2="${hy}" stroke="var(--text-2)" stroke-width="1.5" stroke-dasharray="6 4"/><text class="lab" x="${m.l + 4}" y="${hy - 5}">${opts.hline.label}</text>`;
     }
     const ends = [];
     for (const s of series) {
@@ -321,6 +388,19 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
         : c.convDays != null && c.convDays < 0 ? ` 距開始轉換還有 ${-c.convDays} 天。` : '';
       verdict = `<div class="verdict">近 ${state.n} 個交易日溢價率 <b class="num">${f1(m.premThen)}% → ${f1(m.premNow)}%</b>（${dir} <b class="num">${sign(m.dPrem)} pp</b>）。${why}${cv}</div>`;
     }
+    const a = c.auc;
+    if (a && m) {
+      const pos = m.dCost < 0 ? `比競拍均價低 <b class="num">${Math.abs(m.dCost).toFixed(1)}%</b>` : `比競拍均價高 <b class="num">${m.dCost.toFixed(1)}%</b>`;
+      const lowTxt = m.dLow < 0 ? `，也低於最低得標價 ${f2(a.low)}` : `，最低得標價 ${f2(a.low)}`;
+      const costVerdict = `<div class="verdict">CB 現價 <b class="num">${f2(c.ref[L])}</b>，${pos}（競拍均價 ${f2(a.avg)}${lowTxt}）。近 ${state.n} 個交易日 CB ${sign(m.dRef)}%。</div>`;
+      verdict = state.view === 'cost' ? costVerdict + verdict : verdict + costVerdict;
+    } else if (state.view === 'cost') {
+      verdict = `<div class="verdict">這檔沒有競拍得標資料（詢圈發行或資料範圍外）。</div>` + verdict;
+    }
+    const aucFacts = a ? `
+        <div><div class="k">競拍均價（成本）</div><div class="v num">${f2(a.avg)}</div></div>
+        <div><div class="k">距成本</div><div class="v num">${sign((c.ref[L] / a.avg - 1) * 100)}%</div></div>
+        <div><div class="k">得標區間・開標日</div><div class="v num" style="font-size:13px">${f2(a.low)} ～ ${f2(a.high)}<span style="color:var(--text-3);font-weight:400"> ・${a.date}</span></div></div>` : '';
     const i0 = Math.max(0, L - Math.max(state.n, 5));
     let daily = '';
     for (let i = L; i >= i0; i--) {
@@ -328,6 +408,10 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       const dp = i > 0 && c.prem[i - 1] != null ? c.prem[i] - c.prem[i - 1] : null;
       daily += `<tr><td>${md(dates[i])}</td><td class="num">${f2(c.px[i])}</td><td class="num">${f2(c.ref[i])}</td><td class="num">${f1(c.par[i])}</td><td class="num"><b>${f1(c.prem[i])}%</b></td><td class="num">${sign(dp)}</td><td class="num">${(c.vol[i] || 0).toLocaleString()}</td></tr>`;
     }
+    const chPrem = `<div class="chart"><h3>溢價率（%）</h3><div id="ch-prem"></div></div>`;
+    const chPx = `<div class="chart"><h3>CB 價 vs 平價${a ? '、競拍均價' : ''}</h3>
+        <div class="legend"><span><i style="background:var(--s1)"></i>CB 價</span><span><i style="background:var(--s2)"></i>平價（轉換價值）</span></div>
+        <div id="ch-px"></div></div>`;
     el.innerHTML = `
       <h2>${c.name} <span class="id" style="color:var(--text-3);font-size:14px;font-weight:400">${c.id}・現股 ${c.stock}</span></h2>
       <div class="sub">轉換期 ${c.convStart} ～ ${c.convEnd}${c.putDate ? '・賣回 ' + c.putDate + ' @' + c.putPrice : ''}</div>
@@ -337,13 +421,10 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
         <div><div class="k">溢價率</div><div class="v num">${f1(c.prem[L])}%</div></div>
         <div><div class="k">現股</div><div class="v num">${f2(c.px[L])}</div></div>
         <div><div class="k">轉換價</div><div class="v num">${f2(c.conv[L])}</div></div>
-        <div><div class="k">流通餘額</div><div class="v num">${(c.outstanding / 1e8).toFixed(1)} 億<span style="color:var(--text-3);font-weight:400;font-size:12px"> / ${(c.issued / 1e8).toFixed(0)}</span></div></div>
+        <div><div class="k">流通餘額</div><div class="v num">${(c.outstanding / 1e8).toFixed(1)} 億<span style="color:var(--text-3);font-weight:400;font-size:12px"> / ${(c.issued / 1e8).toFixed(0)}</span></div></div>${aucFacts}
       </div>
       ${verdict}
-      <div class="chart"><h3>溢價率（%）</h3><div id="ch-prem"></div></div>
-      <div class="chart"><h3>CB 價 vs 平價</h3>
-        <div class="legend"><span><i style="background:var(--s1)"></i>CB 價</span><span><i style="background:var(--s2)"></i>平價（轉換價值）</span></div>
-        <div id="ch-px"></div></div>
+      ${state.view === 'cost' ? chPx + chPrem : chPrem + chPx}
       <table class="daily"><thead><tr><th>日期</th><th>現股</th><th>CB 價</th><th>平價</th><th>溢價率</th><th>日變化 pp</th><th>成交張</th></tr></thead><tbody>${daily}</tbody></table>`;
     lineChart($('ch-prem'), [{ name: '溢價率', v: c.prem, color: 'var(--s1)', fmt: (v) => v.toFixed(1) + '%' }],
       { zero: true, mark: c.convStart, label: c.name + ' 溢價率走勢' });
@@ -351,20 +432,28 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       { name: 'CB 價', v: c.ref, color: 'var(--s1)', fmt: (v) => v.toFixed(1) },
       { name: '平價', v: c.par, color: 'var(--s2)', fmt: (v) => v.toFixed(1) },
     ], { mark: c.convStart, label: c.name + ' CB 價與平價走勢',
+      hline: a ? { v: a.avg, label: '競拍均價 ' + f2(a.avg) } : null,
       extra: (i) => c.px[i] == null ? '' : `<div class="d">現股 ${f2(c.px[i])}</div>` });
   }
 
   function render() {
     document.querySelectorAll('#seg-n button').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.n === state.n));
+    document.querySelectorAll('#seg-view button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.view === state.view));
+    document.querySelectorAll('.controls [data-for]').forEach((l) => { l.hidden = l.dataset.for !== state.view; });
     renderTable(); renderDetail();
   }
 
   $('meta').textContent = `資料日 ${D.asof}・${D.cbs.length} 檔 CB・更新於 ${D.generated.replace('T', ' ')}`;
   $('seg-n').addEventListener('click', (e) => { if (e.target.dataset.n) { state.n = +e.target.dataset.n; render(); } });
-  ['f-par', 'f-vol', 'f-conv', 'f-q'].forEach((id) => $(id).addEventListener('input', renderTable));
+  $('seg-view').addEventListener('click', (e) => {
+    const v = e.target.dataset.view; if (!v || v === state.view) return;
+    state.view = v; state.sort = v === 'cost' ? 'dCost' : 'dPrem'; state.dir = 1;
+    render();
+  });
+  ['f-par', 'f-vol', 'f-conv', 'f-cost', 'f-q'].forEach((id) => $(id).addEventListener('input', renderTable));
   $('thead').addEventListener('click', (e) => {
     const th = e.target.closest('th'); if (!th) return;
-    const col = cols.find((c) => c.k === th.dataset.k); if (col.nosort) return;
+    const col = cols().find((c) => c.k === th.dataset.k); if (col.nosort) return;
     if (state.sort === col.k) state.dir = -state.dir; else { state.sort = col.k; state.dir = 1; }
     renderTable();
   });
