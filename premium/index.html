@@ -10,7 +10,7 @@
   --bg: #f4f3f0; --surface: #fcfcfb; --line: #e4e2dc; --line-strong: #cfcdc5;
   --text: #0b0b0b; --text-2: #52514e; --text-3: #85837c;
   --s1: #2a78d6; --s2: #eb6834; --s1-soft: #cde2fb; --s2-soft: #fbd9cb;
-  --sel: #eaf2fd; --hover: #f4f3ef; --chip: #eeede9;
+  --sel: #dceafc; --hover: #e9e7e1; --chip: #e6e4de; --stripe: #f3f2ee;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -18,7 +18,7 @@
     --bg: #111110; --surface: #1a1a19; --line: #2e2e2b; --line-strong: #45443f;
     --text: #ffffff; --text-2: #c3c2b7; --text-3: #8d8c83;
     --s1: #3987e5; --s2: #d95926; --s1-soft: #184f95; --s2-soft: #6e3218;
-    --sel: #17293f; --hover: #222220; --chip: #2a2a27;
+    --sel: #1b3352; --hover: #2c2c29; --chip: #33332f; --stripe: #222221;
   }
 }
 * { box-sizing: border-box; }
@@ -61,6 +61,7 @@ th { position: sticky; top: 0; background: var(--surface); color: var(--text-2);
 th.sorted { color: var(--text); }
 th:first-child, td:first-child { text-align: left; }
 tbody tr { cursor: pointer; }
+tbody tr:nth-child(even) { background: var(--stripe); }
 tbody tr:hover { background: var(--hover); }
 tbody tr.sel { background: var(--sel); }
 td .id { color: var(--text-3); font-size: 12px; margin-left: 6px; }
