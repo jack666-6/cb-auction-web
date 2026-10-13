@@ -43,6 +43,13 @@ header .meta { color: var(--text-2); font-size: 13px; }
 .tile .k { color: var(--text-2); font-size: 12px; }
 .tile .v { font-size: 24px; font-weight: 650; margin-top: 2px; }
 .tile .s { color: var(--text-3); font-size: 12px; }
+#ipo { padding: 0 24px 32px; }
+#ipo th { cursor: default; }
+#ipo td.l, #ipo th.l { text-align: left; }
+#ipo tbody tr { cursor: default; }
+#ipo tr.grp td { background: var(--hover); color: var(--text-2); font-size: 12px; font-weight: 600; text-align: left; }
+#ipo .sub { color: var(--text-3); font-size: 12px; margin-left: 6px; }
+main[hidden], #ipo[hidden] { display: none; }
 main { padding: 0 24px 32px; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(360px, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
@@ -95,13 +102,13 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
 <header>
   <h1>CB 溢價收斂監測</h1>
   <span class="seg" id="seg-view">
-    <button data-view="prem">溢價收斂</button><button data-view="cost">回到競拍成本</button>
+    <button data-view="prem">溢價收斂</button><button data-view="cost">回到競拍成本</button><button data-view="ipo">近期掛牌詢圈</button>
   </span>
   <span class="meta" id="meta"></span>
 </header>
 
 <div class="controls">
-  <label>回看
+  <label data-for="prem cost">回看
     <span class="seg" id="seg-n">
       <button data-n="3">3日</button><button data-n="5">5日</button><button data-n="10">10日</button><button data-n="20">20日</button>
     </span>
@@ -114,7 +121,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       <option value="all">全部</option>
     </select>
   </label>
-  <label>期間成交 ≥ <input type="number" id="f-vol" value="50" step="10"> 張</label>
+  <label data-for="prem cost">期間成交 ≥ <input type="number" id="f-vol" value="50" step="10"> 張</label>
   <label data-for="prem">轉換期
     <select id="f-conv">
       <option value="all">全部</option>
@@ -122,7 +129,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       <option value="pre">尚未開轉</option>
     </select>
   </label>
-  <label><input type="search" id="f-q" placeholder="搜尋名稱 / 代號"></label>
+  <label data-for="prem cost"><input type="search" id="f-q" placeholder="搜尋名稱 / 代號"></label>
 </div>
 
 <div class="tiles" id="tiles"></div>
@@ -137,10 +144,18 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
   </div>
   <div class="card detail" id="detail"></div>
 </main>
+<section id="ipo" hidden>
+  <div class="card tablewrap"><table><thead><tr>
+    <th class="l">CB</th><th>掛牌日</th><th>狀態</th><th>轉換價</th><th>基準現股價</th><th>Parity</th><th>發行價</th><th>發行價對 Parity</th>
+    <th>CB 現價</th><th>發行額</th><th>信評／擔保</th><th>年期</th><th>賣回</th><th>詢圈期間</th><th>主辦</th>
+  </tr></thead><tbody id="ipo-body"></tbody></table>
+  <div class="empty" id="ipo-empty" hidden>目前清單裡沒有詢圈 CB。</div></div>
+</section>
 
 <footer>
   溢價率 = CB 價 ÷ 平價 − 1；平價 = 現股收盤 ÷ 轉換價 × 100。CB 價當日有成交用收盤價，無成交沿用參考價。
   溢價變化以百分點（pp）計，負值代表收斂。
+  近期掛牌詢圈：Parity = 掛牌前一個交易日現股收盤 ÷ 轉換價 × 100，尚未掛牌的先用最新收盤暫估；清單來自統一證券 CBAS「最近掛牌」，扣掉證交所有競拍公告的。
   競拍成本 = 證交所公告的得標加權平均價格（未含得標手續費）；距成本 = CB 價 ÷ 競拍均價 − 1；詢圈發行的 CB 沒有競拍成本。資料來源 FinMind、證交所，每個交易日晚上自動更新。
 </footer>
 
@@ -436,10 +451,48 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       extra: (i) => c.px[i] == null ? '' : `<div class="d">現股 ${f2(c.px[i])}</div>` });
   }
 
+  function renderIpo() {
+    const list = D.ipo || [], byId = Object.fromEntries(D.cbs.map((c) => [c.id, c]));
+    const today = new Date(D.generated.slice(0, 10));
+    const row = (x) => {
+      const par = x.px ? x.px / x.conv * 100 : null;
+      const gap = par && x.issue ? (x.issue / par - 1) * 100 : null;
+      const days = Math.round((new Date(x.listed) - today) / 864e5);
+      const cb = byId[x.id];
+      const chip = x.final ? `<span class="chip">已掛牌</span>` : `<span class="chip pre">${days <= 0 ? '今日掛牌' : days + ' 天後掛牌'}</span>`;
+      return `<tr><td>${x.name}<span class="id">${x.id}</span></td>
+        <td class="num">${x.listed}</td><td>${chip}</td>
+        <td class="num">${f2(x.conv)}</td>
+        <td class="num">${f2(x.px)}<span class="sub">${x.pxDate ? md(x.pxDate) + (x.final ? '' : ' 暫估') : ''}</span></td>
+        <td class="num"><b>${f1(par)}</b></td>
+        <td class="num">${f2(x.issue)}</td>
+        <td class="num">${gap == null ? '–' : sign(gap) + '%'}</td>
+        <td class="num">${cb ? f2(cb.ref[L]) : '–'}</td>
+        <td class="num">${x.size} 億</td>
+        <td>${x.tcri}</td><td>${x.years}</td><td>${x.put}</td><td>${x.inquiry}</td><td>${x.broker}</td></tr>`;
+    };
+    const up = list.filter((x) => !x.final), done = list.filter((x) => x.final).reverse();
+    const grp = (t) => `<tr class="grp"><td colspan="15">${t}</td></tr>`;
+    $('ipo-body').innerHTML = (up.length ? grp('即將掛牌') + up.map(row).join('') : grp('即將掛牌：目前沒有'))
+      + (done.length ? grp('近期已掛牌（Parity 已定）') + done.map(row).join('') : '');
+    $('ipo-empty').hidden = list.length > 0;
+    const pars = list.filter((x) => x.px).map((x) => x.px / x.conv * 100);
+    const next = up[0];
+    $('tiles').innerHTML = [
+      ['即將掛牌', up.length, '檔詢圈 CB'],
+      ['近期已掛牌', done.length, '檔詢圈 CB'],
+      ['Parity ≥ 100', pars.filter((v) => v >= 100).length, `共 ${pars.length} 檔`],
+      ['下一檔掛牌', next ? next.name : '–', next ? next.listed : ''],
+    ].map(([k, v, s]) => `<div class="tile"><div class="k">${k}</div><div class="v num">${v}</div><div class="s">${s}</div></div>`).join('');
+  }
+
   function render() {
     document.querySelectorAll('#seg-n button').forEach((b) => b.setAttribute('aria-pressed', +b.dataset.n === state.n));
     document.querySelectorAll('#seg-view button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.view === state.view));
-    document.querySelectorAll('.controls [data-for]').forEach((l) => { l.hidden = l.dataset.for !== state.view; });
+    document.querySelectorAll('.controls [data-for]').forEach((l) => { l.hidden = !l.dataset.for.split(' ').includes(state.view); });
+    const ipo = state.view === 'ipo';
+    document.querySelector('main').hidden = ipo; $('ipo').hidden = !ipo;
+    if (ipo) { renderIpo(); return; }
     renderTable(); renderDetail();
   }
 
