@@ -179,7 +179,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       cost: c.auc ? c.auc.avg : null, low: c.auc ? c.auc.low : null,
       dCost: c.auc ? (c.ref[L] / c.auc.avg - 1) * 100 : null,
       dLow: c.auc && c.auc.low ? (c.ref[L] / c.auc.low - 1) * 100 : null,
-      listed: c.auc ? c.auc.listed : '',
+      due: c.convEnd || '',
     };
   }
 
@@ -193,7 +193,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     { k: 'dRef', t: 'CB %' },
     { k: 'par', t: '平價' },
     { k: 'premNow', t: '溢價率' },
-    { k: 'listed', t: '掛牌日' },
+    { k: 'due', t: '到期日' },
     { k: 'vol', t: '成交張' },
   ];
   const premCols = [
@@ -249,7 +249,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       out.push(m);
     }
     const k = state.sort;
-    out.sort((a, b) => (k === 'name' || k === 'listed' ? String(a[k]).localeCompare(String(b[k]), 'zh-Hant') : (a[k] ?? 1e9) - (b[k] ?? 1e9)) * state.dir);
+    out.sort((a, b) => (k === 'name' || k === 'due' ? String(a[k]).localeCompare(String(b[k]), 'zh-Hant') : (a[k] ?? 1e9) - (b[k] ?? 1e9)) * state.dir);
     return out;
   }
 
@@ -271,7 +271,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
         <td class="num">${sign(m.dRef)}%</td>
         <td class="num">${f1(m.par)}</td>
         <td class="num">${f1(m.premNow)}%</td>
-        <td class="num">${m.listed}</td>
+        <td class="num">${m.due}</td>
         <td class="num">${m.vol.toLocaleString()}</td></tr>`;
       return `<tr data-id="${m.c.id}" class="${m.c.id === state.sel ? 'sel' : ''}">
         <td>${m.c.name}<span class="id">${m.c.id}</span></td>
