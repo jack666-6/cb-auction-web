@@ -163,6 +163,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
   溢價率 = CB 價 ÷ 平價 − 1；平價 = 現股收盤 ÷ 轉換價 × 100。CB 價當日有成交用收盤價，無成交沿用參考價。
   溢價變化以百分點（pp）計，負值代表收斂。
   即將掛牌詢圈：Parity = 掛牌前一個交易日現股收盤 ÷ 轉換價 × 100（掛牌日之前先用最新收盤，每晚更新）；掛牌參考價 = 發行價；空間 = Parity − 參考價；首日漲停價 = 參考價 × 1.1。清單來自統一證券 CBAS，扣掉證交所有競拍公告的。
+  第 6 日溢價率 = 第 6 日 CB 開盤價 ÷（當日現股開盤價 ÷ 當日轉換價 × 100）− 1。
   CBAS 拆解成本 = 掛牌第 6 個交易日的開盤價（CB 掛牌滿 5 個交易日才能承作 CBAS），該日沒成交則用之後第一個有成交日的開盤價（明細標 *）。
   競拍成本 = 證交所公告的得標加權平均價格（未含得標手續費）；距成本 = CB 價 ÷ 競拍均價 − 1；詢圈發行的 CB 沒有競拍成本。資料來源 FinMind、證交所，每個交易日晚上自動更新。
 </footer>
@@ -201,6 +202,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       convDays: c.convDays, name: c.name,
       aucCost: c.auc ? c.auc.avg : null, dAuc: c.auc ? (c.ref[L] / c.auc.avg - 1) * 100 : null,
       d6Cost: c.d6 ? c.d6.open : null, dD6: c.d6 ? (c.ref[L] / c.d6.open - 1) * 100 : null,
+      d6Prem: c.d6 && c.d6.prem != null ? c.d6.prem : null,
       low: c.auc ? c.auc.low : null,
       dLow: c.auc && c.auc.low ? (c.ref[L] / c.auc.low - 1) * 100 : null,
       due: c.convEnd || '',
@@ -218,6 +220,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     { k: 'dAuc', t: '距競拍 %' },
     { k: 'd6Cost', t: '拆解成本' },
     { k: 'dD6', t: '距拆解 %' },
+    { k: 'd6Prem', t: '第6日溢價 %' },
     { k: 'spark', t: '近 20 日 CB 價', nosort: true },
     { k: 'dRef', t: 'CB %' },
     { k: 'par', t: '平價' },
@@ -301,6 +304,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
         <td class="num">${dk === 'dAuc' ? bar(m.dAuc) : ''}${m.dAuc == null ? '–' : sign(m.dAuc) + '%'}</td>
         <td class="num">${f2(m.d6Cost)}</td>
         <td class="num">${dk === 'dD6' ? bar(m.dD6) : ''}${m.dD6 == null ? '–' : sign(m.dD6) + '%'}</td>
+        <td class="num">${m.d6Prem == null ? '–' : f1(m.d6Prem) + '%'}</td>
         <td>${spark(m.c.ref)}</td>
         <td class="num">${sign(m.dRef)}%</td>
         <td class="num">${f1(m.par)}</td>
@@ -441,9 +445,9 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
         <div><div class="k">距成本</div><div class="v num">${sign((c.ref[L] / a.avg - 1) * 100)}%</div></div>
         <div><div class="k">得標區間・開標日</div><div class="v num" style="font-size:13px">${f2(a.low)} ～ ${f2(a.high)}<span style="color:var(--text-3);font-weight:400"> ・${a.date}</span></div></div>` : '';
     const d6Facts = d6 ? `
-        <div><div class="k">CBAS 拆解成本</div><div class="v num">${f2(d6.open)}</div></div>
+        <div><div class="k">CBAS 拆解成本（${md(d6.date)}${d6.exact ? '' : '*'} 開盤）</div><div class="v num">${f2(d6.open)}</div></div>
         <div><div class="k">距拆解成本</div><div class="v num">${sign((c.ref[L] / d6.open - 1) * 100)}%</div></div>
-        <div><div class="k">拆解日（第 6 日）・掛牌日</div><div class="v num" style="font-size:13px">${d6.date}${d6.exact ? '' : ' *'}<span style="color:var(--text-3);font-weight:400"> ・${d6.listed}</span></div></div>` : '';
+        <div><div class="k">第 6 日溢價率（平價）</div><div class="v num">${d6.prem == null ? '–' : f1(d6.prem) + '%'}<span style="color:var(--text-3);font-weight:400;font-size:12px"> ${d6.parity ? '（' + f1(d6.parity) + '）' : ''}</span></div></div>` : '';
     const i0 = Math.max(0, L - Math.max(N(), 5));
     let daily = '';
     for (let i = L; i >= i0; i--) {
