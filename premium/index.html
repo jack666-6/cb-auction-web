@@ -191,14 +191,18 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
   if (!D.cbs.some((c) => c.id === state.sel)) state.sel = null;
 
   function metrics(c, n) {
-    const i0 = L - n;
-    if (i0 < 0 || c.prem[i0] == null) return null;
+    if (c.prem[L] == null) return null;
+    // 剛掛牌不滿 n 天的，從掛牌第一天開始算；只有今天一天就沒有變化可算
+    let i0 = Math.max(0, L - n);
+    while (i0 < L && c.prem[i0] == null) i0++;
+    const span = L - i0, first = c.ref.findIndex((v) => v != null);
     let vol = 0;
-    for (let i = i0 + 1; i <= L; i++) vol += c.vol[i] || 0;
+    for (let i = i0 > L - n ? i0 : i0 + 1; i <= L; i++) vol += c.vol[i] || 0;
     return {
-      c, premNow: c.prem[L], premThen: c.prem[i0], dPrem: c.prem[L] - c.prem[i0],
+      c, premNow: c.prem[L], premThen: span ? c.prem[i0] : null, dPrem: span ? c.prem[L] - c.prem[i0] : null,
       ref: c.ref[L], par: c.par[L], vol,
-      dPx: (c.px[L] / c.px[i0] - 1) * 100, dRef: (c.ref[L] / c.ref[i0] - 1) * 100,
+      newDays: first > 0 && L - first < 10 ? L - first + 1 : null,
+      dPx: span ? (c.px[L] / c.px[i0] - 1) * 100 : null, dRef: span ? (c.ref[L] / c.ref[i0] - 1) * 100 : null,
       convDays: c.convDays, name: c.name,
       aucCost: c.auc ? c.auc.avg : null, dAuc: c.auc ? (c.ref[L] / c.auc.avg - 1) * 100 : null,
       d6Cost: c.d6 ? c.d6.open : null, dD6: c.d6 ? (c.ref[L] / c.d6.open - 1) * 100 : null,
@@ -298,7 +302,7 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
       const w = Math.min(50, Math.abs(m[dk]) / scale * 50);
       const bar = (v) => `<span class="dbar"><i class="${v > 0 ? 'pos' : ''}" style="width:${w}%"></i></span>`;
       if (state.view === 'cost') return `<tr data-id="${m.c.id}" class="${m.c.id === state.sel ? 'sel' : ''}">
-        <td>${m.c.name}<span class="id">${m.c.id}</span></td>
+        <td>${m.c.name}<span class="id">${m.c.id}</span>${m.newDays ? ` <span class="chip new">掛牌第 ${m.newDays} 天</span>` : ''}</td>
         <td class="num"><b>${f2(m.ref)}</b></td>
         <td class="num">${f2(m.aucCost)}</td>
         <td class="num">${dk === 'dAuc' ? bar(m.dAuc) : ''}${m.dAuc == null ? '–' : sign(m.dAuc) + '%'}</td>
@@ -312,10 +316,10 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
         <td class="num">${m.due}</td>
         <td class="num">${m.vol.toLocaleString()}</td></tr>`;
       return `<tr data-id="${m.c.id}" class="${m.c.id === state.sel ? 'sel' : ''}">
-        <td>${m.c.name}<span class="id">${m.c.id}</span></td>
+        <td>${m.c.name}<span class="id">${m.c.id}</span>${m.newDays ? ` <span class="chip new">掛牌第 ${m.newDays} 天</span>` : ''}</td>
         <td class="num">${f2(m.ref)}</td>
         <td class="num">${f1(m.par)}</td>
-        <td class="num">${f1(m.premThen)}%<span class="arrow">→</span><b>${f1(m.premNow)}%</b></td>
+        <td class="num">${m.premThen == null ? '' : f1(m.premThen) + '%<span class="arrow">→</span>'}<b>${f1(m.premNow)}%</b></td>
         <td class="num"><span class="dbar"><i class="${m.dPrem > 0 ? 'pos' : ''}" style="width:${w}%"></i></span>${sign(m.dPrem)}</td>
         <td>${spark(m.c.prem)}</td>
         <td class="num">${sign(m.dPx)}%</td>
@@ -345,9 +349,9 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     }
     const conv = rs.filter((m) => m.dPrem <= -5);
     const fresh = rs.filter((m) => m.convDays != null && m.convDays >= 0 && m.convDays <= 30);
-    const sorted = rs.map((m) => m.dPrem).sort((a, b) => a - b);
+    const sorted = rs.map((m) => m.dPrem).filter((v) => v != null).sort((a, b) => a - b);
     const med = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
-    const top = rs.slice().sort((a, b) => a.dPrem - b.dPrem)[0];
+    const top = rs.filter((m) => m.dPrem != null).sort((a, b) => a.dPrem - b.dPrem)[0];
     const pre = D.cbs.filter((c) => c.convDays != null && c.convDays < 0 && c.convDays >= -30 && c.par[L] >= 100 && c.prem[L] >= 5);
     $('tiles').innerHTML = [
       ['符合篩選', rs.length, '檔 CB'],
@@ -419,7 +423,9 @@ footer { padding: 0 24px 24px; color: var(--text-3); font-size: 12px; }
     if (!c) { el.innerHTML = '<div class="empty">點選左側任一檔 CB 看每日明細</div>'; return; }
     const m = metrics(c, N());
     let verdict = '';
-    if (m) {
+    if (m && m.dPrem == null) {
+      verdict = `<div class="verdict">掛牌第 ${m.newDays || 1} 天，資料還不夠算近 ${N()} 日的溢價變化。目前溢價率 <b class="num">${f1(m.premNow)}%</b>。</div>`;
+    } else if (m) {
       const dir = m.dPrem <= -1 ? '收斂' : m.dPrem >= 1 ? '擴大' : '持平';
       const why = m.dPrem <= -1
         ? (m.dPx > 0 && m.dRef < m.dPx ? `現股漲 ${sign(m.dPx)}%，CB 只${m.dRef >= 0 ? '漲' : '跌'} ${sign(m.dRef)}%，CB 沒跟上現股。`
