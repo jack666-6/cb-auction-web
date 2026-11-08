@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CBAS 每日拆解</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script src="data.js"></script>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f6f4;
+  --surface: #fcfcfb;
+  --border: #e3e2de;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --text-3: #8a8984;
+  --up: #e34948;          /* 台股慣例：漲紅 */
+  --down: #008300;        /* 跌綠 */
+  --line: #2a78d6;        /* 溢價率 */
+  --bar: #b9c3cf;         /* 一般拆解量 */
+  --hit: #eb6834;         /* 符合篩選的拆解量 */
+  --avg: #52514e;         /* 均量線 */
+  --mark: #6250d6;        /* 選定日期 */
+  --row-hover: #f0efec;
+  --row-active: #e8eefa;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211; --surface: #1a1a19; --border: #2e2e2c;
+    --text: #f0efec; --text-2: #c3c2b7; --text-3: #8f8e86;
+    --up: #e66767; --down: #2fa84f; --line: #3987e5;
+    --bar: #4a5260; --hit: #d95926; --avg: #c3c2b7; --mark: #9085e9;
+    --row-hover: #232322; --row-active: #1f2a3d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --border: #2e2e2c;
+  --text: #f0efec; --text-2: #c3c2b7; --text-3: #8f8e86;
+  --up: #e66767; --down: #2fa84f; --line: #3987e5;
+  --bar: #4a5260; --hit: #d95926; --avg: #c3c2b7; --mark: #9085e9;
+  --row-hover: #232322; --row-active: #1f2a3d;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+}
+.wrap { max-width: 1280px; margin: 0 auto; padding: 24px 16px 48px; }
+header h1 { margin: 0; font-size: 22px; }
+header p { margin: 4px 0 0; color: var(--text-2); font-size: 13px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-top: 16px; }
+.card h2 { margin: 0 0 12px; font-size: 16px; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; margin-bottom: 12px; }
+.controls label { display: flex; align-items: center; gap: 6px; color: var(--text-2); font-size: 13px; }
+select, input[type=number], input[type=search] {
+  font: inherit; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px;
+}
+input[type=number] { width: 72px; }
+.count { color: var(--text-3); font-size: 13px; margin-left: auto; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 10px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
+th { color: var(--text-2); font-weight: 600; font-size: 12px; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface); }
+th.sorted::after { content: attr(data-dir); margin-left: 3px; color: var(--text-3); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--row-hover); }
+tbody tr.active { background: var(--row-active); }
+td.dim { color: var(--text-3); }
+.tag { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 4px; border: 1px solid var(--hit); color: var(--text); margin-left: 4px; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -4px 0 12px; font-size: 13px; color: var(--text-2); }
+.presets button { font: inherit; font-size: 12px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+.presets button:hover { background: var(--row-hover); }
+.presets button.on { border-color: var(--hit); background: var(--row-active); }
+.empty { color: var(--text-3); padding: 20px 10px; text-align: center; }
+.chart-head { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; margin-bottom: 4px; }
+.chart-head h2 { margin: 0; }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 18px; color: var(--text-2); font-size: 13px; font-variant-numeric: tabular-nums; }
+.stats b { color: var(--text); font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--text-2); margin: 6px 0 0; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.legend i.ln { height: 2px; vertical-align: 3px; }
+#chart { width: 100%; height: 660px; }
+.note { color: var(--text-3); font-size: 12px; margin-top: 8px; }
+@media (max-width: 640px) {
+  #chart { height: 560px; }
+  .count { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CBAS 每日拆解</h1>
+    <p id="asof"></p>
+  </header>
+
+  <section class="card">
+    <h2>拆解量篩選</h2>
+    <div class="controls">
+      <label>日期 <select id="date"></select></label>
+      <label>均量天數 <select id="win"><option>5</option><option>10</option><option selected>20</option></select></label>
+      <label>拆解量 ≥ 均量 × <input id="ratio" type="number" min="0" step="0.5" value="1"></label>
+      <label>最低張數 <input id="minLots" type="number" min="0" step="10" value="50"></label>
+      <label>連續天數 ≥ <input id="minStreak" type="number" min="1" step="1" value="1"></label>
+      <label><input id="showAll" type="checkbox"> 顯示當天全部 CB</label>
+      <label>搜尋 <input id="q" type="search" placeholder="代號 / 名稱 / 股票代號" autocomplete="off"></label>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="presets">
+      <span>快速設定：</span>
+      <button data-p="1,50,1">均量爆量（預設）</button>
+      <button data-p="0,200,1">大量拆解 ≥ 200 張</button>
+      <button data-p="1,50,2">連續爆量 ≥ 2 天</button>
+      <button data-p="0,200,2">≥ 200 張且連續 2 天</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <p class="note">均量 = 前 N 個交易日的平均拆解張數（不含當日，沒拆解的日子算 0；掛牌不足 N 日不算）。前 N 日都是 0 時倍數顯示「首見」。倍數填 0 = 不看均量，只看最低張數。連續天數 = 到這天為止連續幾天符合條件。點任一列看下方圖表。<br>回測（2024–2026，持有 20 日、扣同日大盤）：倍數高低和之後漲跌無關；單日拆解 ≥ 200 張、連續 2 天以上略好，但只在 2025–2026 成立，2024 年是負的。</p>
+  </section>
+
+  <section class="card">
+    <div class="chart-head">
+      <h2 id="cbTitle"></h2>
+      <label style="color:var(--text-2);font-size:13px">搜尋 CB
+        <input id="cbSearch" type="search" list="cbList" placeholder="代號或名稱，例如 訊芯" autocomplete="off">
+        <datalist id="cbList"></datalist>
+      </label>
+    </div>
+    <div class="stats" id="stats"></div>
+    <div class="legend">
+      <span><i style="background:var(--up)"></i>CB 漲</span>
+      <span><i style="background:var(--down)"></i>CB 跌</span>
+      <span><i class="ln" style="background:var(--line)"></i>轉換溢價率</span>
+      <span><i style="background:var(--bar)"></i>拆解張數</span>
+      <span><i style="background:var(--hit)"></i>符合篩選</span>
+      <span><i class="ln" style="background:var(--avg)"></i><span class="winLabel">20日均量</span></span>
+      <span><i class="ln" style="background:var(--mark)"></i>篩選日期</span>
+    </div>
+    <div id="chart"></div>
+  </section>
+</div>
+
+<script>
+const D = window.CB_DATA;
+// 還原每檔的日期陣列，並建日期 -> 位置的索引
+for (const r of Object.values(D.cbs)) {
+  r.d = r.di ? r.di.map(i => D.dates[i]) : D.dates.slice(r.s, r.s + r.c.length);
+  r.at = new Map(r.d.map((d, j) => [d, j]));
+}
+const $ = id => document.getElementById(id);
+const fmt = (x, nd = 2) => x == null ? '—' : Number(x).toLocaleString('zh-TW', { minimumFractionDigits: nd, maximumFractionDigits: nd });
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+const state = { date: D.asof, win: 20, ratio: 1, minLots: 50, minStreak: 1, showAll: false, q: '', cb: null, sort: { key: 'ratio', dir: -1 } };
+
+// ---- 均量：前 N 日平均（不含當日），不足 N 日為 null ----
+function computeAvg() {
+  const n = state.win;
+  for (const r of Object.values(D.cbs)) {
+    const a = new Array(r.lots.length).fill(null);
+    let sum = 0;
+    for (let j = 0; j < r.lots.length; j++) {
+      if (j >= n) a[j] = sum / n;
+      sum += r.lots[j] || 0;
+      if (j >= n) sum -= r.lots[j - n] || 0;
+    }
+    r.avg = a;
+  }
+  document.querySelectorAll('.winLabel').forEach(e => e.textContent = `${n}日均量`);
+}
+const avgName = () => `${state.win}日均量`;
+
+// ---- 篩選邏輯 ----
+function isHit(lots, avg) {
+  if (!lots || lots < state.minLots) return false;
+  if (state.ratio === 0) return true;  // 倍數 0 = 只看張數
+  if (avg == null) return false;
+  return lots > avg && lots >= avg * state.ratio;
+}
+
+// 每檔每天：連續幾天符合、最後是否算訊號（符合且連續天數夠）
+function computeSignals() {
+  for (const r of Object.values(D.cbs)) {
+    const st = new Array(r.lots.length), sig = new Array(r.lots.length);
+    let k = 0;
+    for (let j = 0; j < r.lots.length; j++) {
+      k = isHit(r.lots[j], r.avg[j]) ? k + 1 : 0;
+      st[j] = k;
+      sig[j] = k >= state.minStreak && k > 0;
+    }
+    r.streak = st; r.sig = sig;
+  }
+  document.querySelectorAll('.presets button').forEach(b =>
+    b.classList.toggle('on', b.dataset.p === [state.ratio, state.minLots, state.minStreak].join(',')));
+}
+
+function rowsForDate(date) {
+  const rows = [];
+  for (const [id, r] of Object.entries(D.cbs)) {
+    const i = r.at.get(date);
+    if (i == null) continue;
+    const lots = r.lots[i], avg = r.avg[i];
+    const ratio = avg == null || !lots ? null : avg === 0 ? Infinity : lots / avg;
+    rows.push({ id, name: r.name, lots, avg, ratio, c: r.c[i], prem: r.prem[i], par: r.par[i],
+                cp: r.cp[i], out: r.out[i], streak: r.streak[i], pct: lots && r.out[i] ? lots / r.out[i] * 100 : null,
+                hit: r.sig[i] });
+  }
+  return rows;
+}
+
+// ---- 表格 ----
+const COLS = [
+  { key: 'id', label: '代號' }, { key: 'name', label: '名稱' },
+  { key: 'lots', label: '拆解張數' }, { key: 'pct', label: '佔餘額' }, { key: 'avg', label: '均量' },
+  { key: 'ratio', label: '倍數' }, { key: 'streak', label: '連續天數' },
+  { key: 'c', label: 'CB 收盤' }, { key: 'prem', label: '溢價率' }, { key: 'par', label: '平價' },
+  { key: 'cp', label: '權利金' }, { key: 'out', label: '餘額(張)' },
+];
+
+function renderTable() {
+  const all = rowsForDate(state.date);
+  // 有搜尋字時：在當天全部掛牌的 CB 裡找（不限符合篩選）
+  const q = state.q.trim();
+  const match = r => r.id.startsWith(q) || r.name.includes(q) || D.cbs[r.id].stock.startsWith(q);
+  let rows = q ? all.filter(match) : state.showAll ? all : all.filter(r => r.hit);
+  const { key, dir } = state.sort;
+  rows.sort((a, b) => {
+    const x = a[key], y = b[key];
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir;
+  });
+  $('thead').innerHTML = COLS.map(c =>
+    `<th data-key="${c.key}" class="${c.key === key ? 'sorted' : ''}" data-dir="${dir > 0 ? '▲' : '▼'}">${c.key === 'avg' ? avgName() : c.label}</th>`).join('');
+  $('count').textContent = `符合 ${all.filter(r => r.hit).length} 檔 / 當天有掛牌 ${all.length} 檔`;
+  if (q) $('count').textContent = `搜尋「${q}」：${rows.length} 檔　｜　` + $('count').textContent;
+  if (!rows.length) {
+    $('tbody').innerHTML = `<tr><td colspan="${COLS.length}" class="empty">${q ? `這天沒有掛牌的 CB 符合「${q}」，按 Enter 直接看它的圖` : '這天沒有符合條件的 CB'}</td></tr>`;
+    return rows;
+  }
+  $('tbody').innerHTML = rows.map(r => `
+    <tr data-id="${r.id}" class="${r.id === state.cb ? 'active' : ''}">
+      <td>${r.id}</td><td>${r.name}${r.hit && (state.showAll || q) ? '<span class="tag">符合</span>' : ''}</td>
+      <td>${fmt(r.lots, 0)}</td>
+      <td>${r.pct == null ? '—' : fmt(r.pct) + '%'}</td>
+      <td class="${r.avg == null ? 'dim' : ''}">${r.avg == null ? `不足${state.win}日` : fmt(r.avg, 1)}</td>
+      <td>${r.ratio == null ? '—' : r.ratio === Infinity ? '首見' : fmt(r.ratio, 2) + '×'}</td>
+      <td>${r.streak ? r.streak + ' 天' : '—'}</td>
+      <td>${fmt(r.c)}</td>
+      <td>${r.prem == null ? '—' : fmt(r.prem) + '%'}</td>
+      <td>${fmt(r.par)}</td>
+      <td>${fmt(r.cp)}</td>
+      <td>${fmt(r.out, 0)}</td>
+    </tr>`).join('');
+  return rows;
+}
+
+// ---- 圖表 ----
+const chart = echarts.init($('chart'));
+window.addEventListener('resize', () => chart.resize());
+
+function renderChart() {
+  const r = D.cbs[state.cb];
+  if (!r) return;
+  $('cbTitle').textContent = `${state.cb} ${r.name}`;
+
+  const last = r.d.length - 1;
+  const at = r.at.get(state.date) ?? -1;
+  const i = at >= 0 ? at : last;
+  $('stats').innerHTML = [
+    ['日期', r.d[i]], ['CB 收盤', fmt(r.c[i])], ['溢價率', r.prem[i] == null ? '—' : fmt(r.prem[i]) + '%'],
+    ['平價', fmt(r.par[i])], ['股價', fmt(r.stk[i])], ['轉換價', fmt(r.conv[i])],
+    ['拆解', fmt(r.lots[i], 0) + ' 張'], ['權利金', fmt(r.cp[i])], ['餘額', fmt(r.out[i], 0) + ' 張'],
+  ].map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join('');
+
+  const C = { up: css('--up'), down: css('--down'), line: css('--line'), bar: css('--bar'), hit: css('--hit'),
+              avg: css('--avg'), mark: css('--mark'), text: css('--text-2'), text3: css('--text-3'), grid: css('--border'),
+              surface: css('--surface') };
+  const kdata = r.d.map((_, j) => r.c[j] == null ? '-' : [r.o[j], r.c[j], r.l[j], r.h[j]]);
+  const bars = r.lots.map((v, j) => ({ value: v, itemStyle: { color: r.sig[j] ? C.hit : C.bar } }));
+
+  // 預設顯示最近 6 個月，或以篩選日期為中心
+  const anchor = at >= 0 ? at : last;
+  const t = new Date(r.d[anchor]); t.setMonth(t.getMonth() - 6);
+  let start = r.d.findIndex(x => new Date(x) >= t); if (start < 0) start = 0;
+  const end = Math.min(last, anchor + 20);
+
+  const axisCommon = { type: 'category', data: r.d, boundaryGap: true, axisLine: { lineStyle: { color: C.grid } },
+                       axisTick: { show: false }, axisLabel: { show: false }, splitLine: { show: false } };
+  const yCommon = { scale: true, splitNumber: 3, axisLabel: { color: C.text3, fontSize: 11 },
+                    splitLine: { lineStyle: { color: C.grid } }, axisLine: { show: false } };
+  const mark = at >= 0 ? { symbol: 'none', silent: true, label: { show: false },
+                           lineStyle: { color: C.mark, width: 1, type: 'dashed' }, data: [{ xAxis: r.d[at] }] } : undefined;
+  const title = (text, top) => ({ text, left: 4, top, textStyle: { fontSize: 12, fontWeight: 600, color: C.text } });
+
+  chart.setOption({
+    animation: false,
+    backgroundColor: 'transparent',
+    title: [title('CB K 線', 0), title('轉換溢價率 (%)', '56%'), title('CBAS 拆解張數', '75%')],
+    axisPointer: { link: [{ xAxisIndex: 'all' }], label: { backgroundColor: C.text } },
+    tooltip: {
+      trigger: 'axis', axisPointer: { type: 'cross' },
+      backgroundColor: C.surface, borderColor: C.grid, textStyle: { color: css('--text'), fontSize: 12 },
+      formatter: ps => {
+        const j = ps[0].dataIndex;
+        const ratio = r.avg[j] == null || !r.lots[j] ? '—' : r.avg[j] === 0 ? '首見' : fmt(r.lots[j] / r.avg[j]) + '×';
+        const row = (k, v) => `<div style="display:flex;justify-content:space-between;gap:16px"><span>${k}</span><b>${v}</b></div>`;
+        return `<div style="font-weight:600;margin-bottom:4px">${r.d[j]}</div>` +
+          row('開 / 高', `${fmt(r.o[j])} / ${fmt(r.h[j])}`) + row('低 / 收', `${fmt(r.l[j])} / ${fmt(r.c[j])}`) +
+          row('CB 成交', fmt(r.v[j], 0) + ' 張') +
+          row('溢價率', r.prem[j] == null ? '—' : fmt(r.prem[j]) + '%') + row('平價', fmt(r.par[j])) +
+          row('股價 / 轉換價', `${fmt(r.stk[j])} / ${fmt(r.conv[j])}`) +
+          row('拆解', fmt(r.lots[j], 0) + ' 張') + row(avgName(), r.avg[j] == null ? `不足${state.win}日` : fmt(r.avg[j], 1)) +
+          row('倍數', ratio) + row('連續天數', r.streak[j] ? r.streak[j] + ' 天' : '—') +
+          row('佔餘額', r.lots[j] && r.out[j] ? fmt(r.lots[j] / r.out[j] * 100) + '%' : '—') + row('權利金 低/均/高', `${fmt(r.cpl[j])} / ${fmt(r.cp[j])} / ${fmt(r.cph[j])}`);
+      },
+    },
+    grid: [
+      { left: 56, right: 16, top: 22, height: '48%' },
+      { left: 56, right: 16, top: '59%', height: '13%' },
+      { left: 56, right: 16, top: '78%', height: '13%' },
+    ],
+    xAxis: [
+      { ...axisCommon, gridIndex: 0 },
+      { ...axisCommon, gridIndex: 1 },
+      { ...axisCommon, gridIndex: 2, axisLabel: { show: true, color: C.text3, fontSize: 11 } },
+    ],
+    yAxis: [
+      { ...yCommon, gridIndex: 0, splitNumber: 4 },
+      { ...yCommon, gridIndex: 1, axisLabel: { ...yCommon.axisLabel, formatter: '{value}%' } },
+      { ...yCommon, gridIndex: 2, scale: false, min: 0 },
+    ],
+    dataZoom: [
+      { type: 'inside', xAxisIndex: [0, 1, 2], startValue: start, endValue: end },
+      { type: 'slider', xAxisIndex: [0, 1, 2], startValue: start, endValue: end, bottom: 4, height: 18,
+        borderColor: C.grid, textStyle: { color: C.text3 }, labelFormatter: v => r.d[v] },
+    ],
+    series: [
+      { name: 'CB', type: 'candlestick', xAxisIndex: 0, yAxisIndex: 0, data: kdata, barMaxWidth: 10,
+        itemStyle: { color: C.up, color0: C.down, borderColor: C.up, borderColor0: C.down }, markLine: mark },
+      { name: '溢價率', type: 'line', xAxisIndex: 1, yAxisIndex: 1, data: r.prem, showSymbol: false,
+        connectNulls: false, lineStyle: { width: 2, color: C.line }, itemStyle: { color: C.line }, markLine: mark },
+      { name: '拆解張數', type: 'bar', xAxisIndex: 2, yAxisIndex: 2, data: bars, barMaxWidth: 10, markLine: mark },
+      { name: avgName(), type: 'line', xAxisIndex: 2, yAxisIndex: 2, data: r.avg, showSymbol: false,
+        lineStyle: { width: 1.5, color: C.avg }, itemStyle: { color: C.avg } },
+    ],
+  }, true);
+}
+
+// ---- 互動 ----
+function selectCb(id) {
+  state.cb = id;
+  document.querySelectorAll('#tbody tr').forEach(tr => tr.classList.toggle('active', tr.dataset.id === id));
+  renderChart();
+}
+
+function refresh() {
+  const rows = renderTable();
+  if (!state.cb || !D.cbs[state.cb]) state.cb = rows[0]?.id || Object.keys(D.cbs)[0];
+  selectCb(state.cb);
+}
+
+function init() {
+  $('asof').textContent = `資料期間 ${D.dates[0]} ~ ${D.asof}，共 ${Object.keys(D.cbs).length} 檔 CB。` +
+    `櫃買 T 日的拆解資料 T+1 早上才公布，所以最新一天是前一個交易日的拆解。`;
+  $('date').innerHTML = [...D.dates].reverse().map(d => `<option>${d}</option>`).join('');
+  $('cbList').innerHTML = Object.entries(D.cbs).map(([id, r]) => `<option value="${id} ${r.name}"></option>`).join('');
+  $('date').onchange = e => { state.date = e.target.value; refresh(); };
+  $('win').onchange = e => { state.win = +e.target.value; computeAvg(); computeSignals(); refresh(); };
+  $('ratio').oninput = e => { state.ratio = +e.target.value || 0; computeSignals(); refresh(); };
+  $('minLots').oninput = e => { state.minLots = +e.target.value || 0; computeSignals(); refresh(); };
+  $('minStreak').oninput = e => { state.minStreak = Math.max(1, +e.target.value || 1); computeSignals(); refresh(); };
+  document.querySelector('.presets').onclick = e => {
+    const p = e.target.closest('button')?.dataset.p; if (!p) return;
+    [state.ratio, state.minLots, state.minStreak] = p.split(',').map(Number);
+    $('ratio').value = state.ratio; $('minLots').value = state.minLots; $('minStreak').value = state.minStreak;
+    state.sort = { key: state.ratio === 0 ? 'lots' : 'ratio', dir: -1 };  // 只看張數時改用張數排序
+    computeSignals(); refresh();
+  };
+  $('showAll').onchange = e => { state.showAll = e.target.checked; refresh(); };
+  $('q').oninput = e => { state.q = e.target.value; renderTable(); };
+  $('q').onkeydown = e => {
+    if (e.key !== 'Enter') return;
+    const first = $('tbody').querySelector('tr[data-id]');
+    if (first) return selectCb(first.dataset.id);
+    // 當天沒掛牌（已下櫃或還沒上市）：直接在全部 CB 裡找來畫圖
+    const q = state.q.trim();
+    const m = Object.entries(D.cbs).filter(([k, r]) => k.startsWith(q) || r.name.includes(q) || r.stock.startsWith(q));
+    if (m.length) selectCb(m[0][0]);
+  };
+  // 搜尋：選 datalist 項目，或輸入完整代號 / 唯一的名稱片段後按 Enter
+  const pick = q => {
+    q = q.trim(); if (!q) return;
+    const id = q.split(' ')[0];
+    if (D.cbs[id]) return selectCb(id), $('cbSearch').value = '';
+    const m = Object.entries(D.cbs).filter(([k, r]) => k.startsWith(q) || r.name.includes(q));
+    if (m.length === 1) selectCb(m[0][0]), $('cbSearch').value = '';
+  };
+  $('cbSearch').oninput = e => { if (D.cbs[e.target.value.split(' ')[0]] && e.target.value.includes(' ')) pick(e.target.value); };
+  $('cbSearch').onkeydown = e => { if (e.key === 'Enter') pick(e.target.value); };
+  $('thead').onclick = e => {
+    const k = e.target.closest('th')?.dataset.key; if (!k) return;
+    state.sort = { key: k, dir: state.sort.key === k ? -state.sort.dir : (k === 'id' || k === 'name' ? 1 : -1) };
+    renderTable();
+  };
+  $('tbody').onclick = e => { const id = e.target.closest('tr')?.dataset.id; if (id) selectCb(id); };
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderChart);
+  computeAvg();
+  computeSignals();
+  refresh();
+}
+init();
+</script>
+</body>
+</html>
