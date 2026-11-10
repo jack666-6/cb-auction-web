@@ -208,9 +208,9 @@ function rowsForDate(date) {
   for (const [id, r] of Object.entries(D.cbs)) {
     const i = r.at.get(date);
     if (i == null) continue;
-    const lots = r.lots[i], avg = r.avg[i];
+    const lots = r.lots[i], avg = r.avg[i], n = r.n[i];
     const ratio = avg == null || !lots ? null : avg === 0 ? Infinity : lots / avg;
-    rows.push({ id, name: r.name, lots, avg, ratio, c: r.c[i], prem: r.prem[i], par: r.par[i],
+    rows.push({ id, name: r.name, lots, n, per: lots && n ? lots / n : null, avg, ratio, c: r.c[i], prem: r.prem[i], par: r.par[i],
                 cp: r.cp[i], out: r.out[i], streak: r.streak[i], pct: lots && r.out[i] ? lots / r.out[i] * 100 : null,
                 hit: r.sig[i] });
   }
@@ -220,7 +220,8 @@ function rowsForDate(date) {
 // ---- 表格 ----
 const COLS = [
   { key: 'id', label: '代號' }, { key: 'name', label: '名稱' },
-  { key: 'lots', label: '拆解張數' }, { key: 'pct', label: '佔餘額' }, { key: 'avg', label: '均量' },
+  { key: 'lots', label: '拆解張數' }, { key: 'n', label: '拆解筆數' }, { key: 'per', label: '每筆均張' },
+  { key: 'pct', label: '佔餘額' }, { key: 'avg', label: '均量' },
   { key: 'ratio', label: '倍數' }, { key: 'streak', label: '連續天數' },
   { key: 'c', label: 'CB 收盤' }, { key: 'prem', label: '溢價率' }, { key: 'par', label: '平價' },
   { key: 'cp', label: '權利金' }, { key: 'out', label: '餘額(張)' },
@@ -252,6 +253,8 @@ function renderTable() {
     <tr data-id="${r.id}" class="${r.id === state.cb ? 'active' : ''}">
       <td>${r.id}</td><td>${r.name}${r.hit && (state.showAll || q) ? '<span class="tag">符合</span>' : ''}</td>
       <td>${fmt(r.lots, 0)}</td>
+      <td>${r.n ? fmt(r.n, 0) : '—'}</td>
+      <td>${fmt(r.per, 1)}</td>
       <td>${r.pct == null ? '—' : fmt(r.pct) + '%'}</td>
       <td class="${r.avg == null ? 'dim' : ''}">${r.avg == null ? `不足${state.win}日` : fmt(r.avg, 1)}</td>
       <td>${r.ratio == null ? '—' : r.ratio === Infinity ? '首見' : fmt(r.ratio, 2) + '×'}</td>
@@ -280,7 +283,8 @@ function renderChart() {
   $('stats').innerHTML = [
     ['日期', r.d[i]], ['CB 收盤', fmt(r.c[i])], ['溢價率', r.prem[i] == null ? '—' : fmt(r.prem[i]) + '%'],
     ['平價', fmt(r.par[i])], ['股價', fmt(r.stk[i])], ['轉換價', fmt(r.conv[i])],
-    ['拆解', fmt(r.lots[i], 0) + ' 張'], ['權利金', fmt(r.cp[i])], ['餘額', fmt(r.out[i], 0) + ' 張'],
+    ['拆解', fmt(r.lots[i], 0) + ' 張'], ['筆數', r.n[i] ? fmt(r.n[i], 0) + ' 筆' : '—'],
+    ['每筆均張', r.lots[i] && r.n[i] ? fmt(r.lots[i] / r.n[i], 1) : '—'], ['權利金', fmt(r.cp[i])], ['餘額', fmt(r.out[i], 0) + ' 張'],
   ].map(([k, v]) => `<span>${k} <b>${v}</b></span>`).join('');
 
   const C = { up: css('--up'), down: css('--down'), line: css('--line'), bar: css('--bar'), hit: css('--hit'),
@@ -320,7 +324,7 @@ function renderChart() {
           row('CB 成交', fmt(r.v[j], 0) + ' 張') +
           row('溢價率', r.prem[j] == null ? '—' : fmt(r.prem[j]) + '%') + row('平價', fmt(r.par[j])) +
           row('股價 / 轉換價', `${fmt(r.stk[j])} / ${fmt(r.conv[j])}`) +
-          row('拆解', fmt(r.lots[j], 0) + ' 張') + row(avgName(), r.avg[j] == null ? `不足${state.win}日` : fmt(r.avg[j], 1)) +
+          row('拆解', fmt(r.lots[j], 0) + ' 張') + row('筆數 / 每筆均張', r.n[j] ? `${fmt(r.n[j], 0)} / ${fmt(r.lots[j] / r.n[j], 1)}` : '—') + row(avgName(), r.avg[j] == null ? `不足${state.win}日` : fmt(r.avg[j], 1)) +
           row('倍數', ratio) + row('連續天數', r.streak[j] ? r.streak[j] + ' 天' : '—') +
           row('佔餘額', r.lots[j] && r.out[j] ? fmt(r.lots[j] / r.out[j] * 100) + '%' : '—') + row('權利金 低/均/高', `${fmt(r.cpl[j])} / ${fmt(r.cp[j])} / ${fmt(r.cph[j])}`);
       },
